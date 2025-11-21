@@ -37,8 +37,8 @@ class Camera:
                 image, 
                 hand_landmarks, 
                 self.mp_hands.HAND_CONNECTIONS,
-                self.mp_drawing.DrawingSpec(color=(255, 22, 76), thickness=1, circle_radius=3),
-                self.mp_drawing.DrawingSpec(color=(255, 44, 250), thickness=1, circle_radius=1)
+                self.mp_drawing.DrawingSpec(color=(235, 137, 52), thickness=1, circle_radius=3),
+                self.mp_drawing.DrawingSpec(color=(235, 52, 113), thickness=1, circle_radius=1)
             )
             # 1º arg: image to draw on
             # 2º arg: landmarks to draw
