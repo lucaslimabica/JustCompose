@@ -1,0 +1,11 @@
+[project]
+name = "justcompose"
+version = "0.1.0 Latte"
+description = "The Just Compose project aims to create a Human-Computer Interaction (HCI) and Augmented Reality (AR) application using visual computing to manage the transmission of various different sounds. It allows users to control and interact with a musical composition environment, using exclusively body movements and hand gestures, as if a DJ's music table and synthesizers were completely controlled by sign language."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "mediapipe>=0.10.21",
+    "opencv-python>=4.11.0.86",
+    "typing-extensions>=4.15.0",
+]
