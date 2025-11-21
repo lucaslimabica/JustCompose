@@ -7,12 +7,12 @@ class Camera:
     # Handling with the capture from the source
     # to then send the landmark to an analyzer class
     
-    def __init__(self, name="Just Compose Beta"):
+    def __init__(self, name="Just Compose Beta", device=0):
         self.mp_hands = mp.solutions.hands 
         self.mp_drawing = mp.solutions.drawing_utils
         
         # Camera source TODO: change to a variable input
-        cap = cv.VideoCapture(0)
+        cap = cv.VideoCapture(device)
         
         with self.mp_hands.Hands() as hand_detector:
             while cv.pollKey() == -1:
@@ -23,7 +23,8 @@ class Camera:
                 
                 # Make detections
                 results = hand_detector.process(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
-                if results.multi_hand_landmarks:
+                if results.multi_hand_landmarks: # Avoid None for the drawing func
+                    # Call the drawing func
                     self.draw_landmarks(frame, results)
                 
                 cv.imshow(name, frame)
