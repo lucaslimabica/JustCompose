@@ -1,4 +1,4 @@
-Total invested time: 50m
+Total invested time: 3h30m
 
 ## How Does JustCompose Use MediaPipe Hands?
 

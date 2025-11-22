@@ -3,6 +3,7 @@ import cv2 as cv
 import mediapipe as mp
 import pygame
 import time
+import random
 
 
 class Camera:
@@ -72,12 +73,33 @@ class Camera:
                 
     def draw_landmarks(self, image, results):
         for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
+            label = handedness.classification[0].label # classification is a list of all possible classes for the hand, so the 0 is the more accurate one
+            score = handedness.classification[0].score
+            if label == "Right":
+                hand_color = (235, 137, 52)
+            else:
+                hand_color = (235, 52, 113)
+            
+            score_color = (
+                0,
+                255,
+                int(255 * (1 - score))
+            )
+            
+            #if label == "Left" and score > 0.8:
+            #    if self.audio_channel.get_busy():
+            #        continue # already playing
+            #    self.audio_channel.play(self.boing)
+            #elif label == "Left" and score <= 0.8:
+            #    print("Left hand detected, but confidence too low")
+            
+            # Then, draw the landmarks on the frame
             self.mp_drawing.draw_landmarks(
                 image, 
                 hand_landmarks, 
                 self.mp_hands.HAND_CONNECTIONS,
-                self.mp_drawing.DrawingSpec(color=(235, 137, 52), thickness=1, circle_radius=3),
-                self.mp_drawing.DrawingSpec(color=(235, 52, 113), thickness=1, circle_radius=1)
+                self.mp_drawing.DrawingSpec(color=score_color, thickness=1, circle_radius=3),
+                self.mp_drawing.DrawingSpec(color=hand_color, thickness=1, circle_radius=1)
             )
             # 1º arg: image to draw on
             # 2º arg: landmarks to draw
@@ -85,11 +107,4 @@ class Camera:
             # 4º arg: style for the circles (landmarks)
             # ==========================================================
             
-            label = handedness.classification[0].label # classification is a list of all possible classes for the hand, so the 0 is the more accurate one
-            score = handedness.classification[0].score
-            if label == "Left" and score > 0.8:
-                if self.audio_channel.get_busy():
-                    continue # already playing
-                self.audio_channel.play(self.boing)
-            elif label == "Left" and score <= 0.8:
-                print("Left hand detected, but confidence too low")
+            
