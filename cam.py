@@ -2,8 +2,6 @@
 import cv2 as cv
 import mediapipe as mp
 import pygame
-import time
-import random
 
 
 class Camera:
@@ -31,8 +29,6 @@ class Camera:
     
     def capture(self):
         if self.device == 0:        
-            cap = cv.VideoCapture(self.device)
-
             with self.mp_hands.Hands() as hand_detector:
                 CAPTURE = cv.VideoCapture(self.device)
                 if not CAPTURE.isOpened(): 
@@ -79,19 +75,7 @@ class Camera:
                 hand_color = (235, 137, 52)
             else:
                 hand_color = (235, 52, 113)
-            
-            score_color = (
-                0,
-                255,
-                int(255 * (1 - score))
-            )
-            
-            #if label == "Left" and score > 0.8:
-            #    if self.audio_channel.get_busy():
-            #        continue # already playing
-            #    self.audio_channel.play(self.boing)
-            #elif label == "Left" and score <= 0.8:
-            #    print("Left hand detected, but confidence too low")
+            score_color = (0, 255, int(255 * (1 - score))) # from yellow to green based on the score
             
             # Then, draw the landmarks on the frame
             self.mp_drawing.draw_landmarks(
