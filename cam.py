@@ -1,6 +1,8 @@
 # Responsible Camera for Motion Capture
 import cv2 as cv
 import mediapipe as mp
+import pygame
+import time
 
 
 class Camera:
@@ -8,11 +10,21 @@ class Camera:
     # to then send the landmark to an analyzer class
     
     def __init__(self, name="Just Compose Beta", device=0):
+        # Pygame structure
+        self.mixer = pygame.mixer
+        self.mixer.init()
+        self.mixer.music.load("C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/assets/boing.mp3")
+
+        # MediaPipe structure
         self.mp_hands = mp.solutions.hands 
         self.mp_drawing = mp.solutions.drawing_utils
+        
+        # Class attributes
         self.name = name
         self.device = device
         self.compatible_file_types = ('.jpg', '.jpeg', '.png')
+        
+        # Start the capture (the main function of the class)
         self.capture()
     
     def capture(self):
@@ -56,7 +68,7 @@ class Camera:
                 cv.destroyAllWindows()
                 
     def draw_landmarks(self, image, results):
-        for hand_landmarks in results.multi_hand_landmarks:
+        for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
             self.mp_drawing.draw_landmarks(
                 image, 
                 hand_landmarks, 
@@ -70,15 +82,14 @@ class Camera:
             # 4º arg: style for the circles (landmarks)
             # ==========================================================
             
-            # print(hand_landmarks) ->
-            # landmark {
-            #   x: 0.389715612
-            #   y: 0.633941829
-            #   z: -0.0076536797
-            # }
-            # print(results.multi_hand_landmarks)
-            # [landmark {
-            #   x: 0.389715612
-            #   y: 0.633941829
-            #   z: -0.0076536797
-            # },...]
+            coord = tuple(
+                (int(hand_landmarks.landmark[self.mp_hands.HandLandmark.WRIST].x * image.shape[1]) - 30,
+                 int(hand_landmarks.landmark[self.mp_hands.HandLandmark.WRIST].y * image.shape[0]) + 30)
+            )
+            label = handedness.classification[0].label
+            if label == "Left":
+                if self.mixer.music.get_busy():
+                    continue # already playing
+                self.mixer.music.play()
+                time.sleep(1)
+                self.mixer.music.stop()
