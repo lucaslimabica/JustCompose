@@ -7,5 +7,6 @@ requires-python = ">=3.12"
 dependencies = [
     "mediapipe>=0.10.21",
     "opencv-python>=4.11.0.86",
+    "pygame>=2.6.1",
     "typing-extensions>=4.15.0",
 ]

@@ -1,6 +1,8 @@
 # Responsible Camera for Motion Capture
 import cv2 as cv
 import mediapipe as mp
+import pygame
+import time
 
 
 class Camera:
@@ -8,11 +10,22 @@ class Camera:
     # to then send the landmark to an analyzer class
     
     def __init__(self, name="Just Compose Beta", device=0):
+        # Pygame structure
+        self.mixer = pygame.mixer
+        self.mixer.init()
+        self.audio_channel = self.mixer.Channel(0)
+        self.boing = self.mixer.Sound("C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/assets/boing.mp3")
+
+        # MediaPipe structure
         self.mp_hands = mp.solutions.hands 
         self.mp_drawing = mp.solutions.drawing_utils
+        
+        # Class attributes
         self.name = name
         self.device = device
         self.compatible_file_types = ('.jpg', '.jpeg', '.png')
+        
+        # Start the capture (the main function of the class)
         self.capture()
     
     def capture(self):
@@ -29,7 +42,9 @@ class Camera:
                     ret, frame = CAPTURE.read()
                     if not ret: # frame not captured
                         print("The video has no frames")
-                        
+                    
+                    # Mirror the frame
+                    frame = cv.flip(frame, 1)
                     # Make detections
                     results = hand_detector.process(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
                     if results.multi_hand_landmarks: # Avoid None for the drawing func
@@ -56,7 +71,7 @@ class Camera:
                 cv.destroyAllWindows()
                 
     def draw_landmarks(self, image, results):
-        for hand_landmarks in results.multi_hand_landmarks:
+        for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
             self.mp_drawing.draw_landmarks(
                 image, 
                 hand_landmarks, 
@@ -70,15 +85,11 @@ class Camera:
             # 4º arg: style for the circles (landmarks)
             # ==========================================================
             
-            # print(hand_landmarks) ->
-            # landmark {
-            #   x: 0.389715612
-            #   y: 0.633941829
-            #   z: -0.0076536797
-            # }
-            # print(results.multi_hand_landmarks)
-            # [landmark {
-            #   x: 0.389715612
-            #   y: 0.633941829
-            #   z: -0.0076536797
-            # },...]
+            label = handedness.classification[0].label # classification is a list of all possible classes for the hand, so the 0 is the more accurate one
+            score = handedness.classification[0].score
+            if label == "Left" and score > 0.8:
+                if self.audio_channel.get_busy():
+                    continue # already playing
+                self.audio_channel.play(self.boing)
+            elif label == "Left" and score <= 0.8:
+                print("Left hand detected, but confidence too low")
