@@ -1,1 +1,1 @@
-Total invested time: 
+Total invested time: 50m

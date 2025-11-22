@@ -7,51 +7,78 @@ class Camera:
     # Handling with the capture from the source
     # to then send the landmark to an analyzer class
     
-    def __init__(self, name="MediaPipe Result"):
-        self.mp_holistic = mp.solutions.holistic 
+    def __init__(self, name="Just Compose Beta", device=0):
+        self.mp_hands = mp.solutions.hands 
         self.mp_drawing = mp.solutions.drawing_utils
-        
-        # Camera source TODO: change to a variable input
-        cap = cv.VideoCapture(0)
-        
-        with self.mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
-            mediapipe_detection = lambda image: holistic.process(cv.cvtColor(image, cv.COLOR_BGR2RGB))
-            
-            while cv.pollKey() == -1:
-                success, frame = cap.read()
-                if not success:
-                    print("Ignoring empty camera frame.")
-                    continue
+        self.name = name
+        self.device = device
+        self.compatible_file_types = ('.jpg', '.jpeg', '.png')
+        self.capture()
+    
+    def capture(self):
+        if self.device == 0:        
+            cap = cv.VideoCapture(self.device)
+
+            with self.mp_hands.Hands() as hand_detector:
+                CAPTURE = cv.VideoCapture(self.device)
+                if not CAPTURE.isOpened(): 
+                    print("No video source :(")
+                    exit(1)
+                    
+                while CAPTURE.isOpened():
+                    ret, frame = CAPTURE.read()
+                    if not ret: # frame not captured
+                        print("The video has no frames")
+                        
+                    # Make detections
+                    results = hand_detector.process(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
+                    if results.multi_hand_landmarks: # Avoid None for the drawing func
+                        # Call the drawing func
+                        self.draw_landmarks(frame, results)
+                    cv.imshow(self.name, frame)
+                    
+                    key = cv.waitKey(1)
+                    if key in [27, ord("q"), ord("l")]:
+                        break
                 
+        elif isinstance(self.device, str) and self.device.endswith(self.compatible_file_types):
+            image = cv.imread(self.device)
+
+            with self.mp_hands.Hands(static_image_mode=True) as hand_detector:
                 # Make detections
-                results = mediapipe_detection(frame)
+                results = hand_detector.process(cv.cvtColor(image, cv.COLOR_BGR2RGB))
+                if results.multi_hand_landmarks: # Avoid None for the drawing func
+                    # Call the drawing func
+                    self.draw_landmarks(image, results)
+
+                cv.imshow(self.name, image)
+                cv.waitKey(0)
+                cv.destroyAllWindows()
                 
-                self.draw_landmarks(frame, results)
-                
-                cv.imshow(name, frame)
-            
-            cap.release()
-            cv.destroyAllWindows()
-            
     def draw_landmarks(self, image, results):
-        # Draw face connections
-        self.mp_drawing.draw_landmarks(image, results.face_landmarks, self.mp_holistic.FACEMESH_CONTOURS,
-        self.mp_drawing.DrawingSpec(color=(80, 110, 10), thickness=1, circle_radius=1),
-        self.mp_drawing.DrawingSpec(color=(80, 256, 121), thickness=1, circle_radius=1))
-        
-        # Draw pose connections
-        self.mp_drawing.draw_landmarks(image, results.pose_landmarks, self.mp_holistic.POSE_CONNECTIONS,
-        self.mp_drawing.DrawingSpec(color=(80, 22, 255), thickness=1, circle_radius=3),
-        self.mp_drawing.DrawingSpec(color=(80, 44, 255), thickness=1, circle_radius=1))
-        
-        # Draw left hand connections
-        self.mp_drawing.draw_landmarks(image, results.left_hand_landmarks,
-        self.mp_holistic.HAND_CONNECTIONS, self.mp_drawing.DrawingSpec(color=(255, 22, 76),
-        thickness=1, circle_radius=3), self.mp_drawing.DrawingSpec(color=(255, 44, 250),
-        thickness=1, circle_radius=1))
-        
-        # Draw right hand connections
-        self.mp_drawing.draw_landmarks(image, results.right_hand_landmarks,
-        self.mp_holistic.HAND_CONNECTIONS, self.mp_drawing.DrawingSpec(color=(245, 255, 66),
-        thickness=1, circle_radius=3), self.mp_drawing.DrawingSpec(color=(245, 255, 230),
-        thickness=1, circle_radius=1))
+        for hand_landmarks in results.multi_hand_landmarks:
+            self.mp_drawing.draw_landmarks(
+                image, 
+                hand_landmarks, 
+                self.mp_hands.HAND_CONNECTIONS,
+                self.mp_drawing.DrawingSpec(color=(235, 137, 52), thickness=1, circle_radius=3),
+                self.mp_drawing.DrawingSpec(color=(235, 52, 113), thickness=1, circle_radius=1)
+            )
+            # 1º arg: image to draw on
+            # 2º arg: landmarks to draw
+            # 3º arg: the connections between the landmarks
+            # 4º arg: style for the circles (landmarks)
+            # ==========================================================
+            
+            # print(hand_landmarks) ->
+            # landmark {
+            #   x: 0.389715612
+            #   y: 0.633941829
+            #   z: -0.0076536797
+            # }
+            # print(results.multi_hand_landmarks)
+            # [landmark {
+            #   x: 0.389715612
+            #   y: 0.633941829
+            #   z: -0.0076536797
+            # },...]
