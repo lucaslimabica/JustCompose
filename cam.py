@@ -30,13 +30,13 @@ class Camera:
     def capture(self):
         if self.device == 0:        
             with self.mp_hands.Hands() as hand_detector:
-                CAPTURE = cv.VideoCapture(self.device)
-                if not CAPTURE.isOpened(): 
+                self.cap = cv.VideoCapture(self.device)
+                if not self.cap.isOpened(): 
                     print("No video source :(")
                     exit(1)
                     
-                while CAPTURE.isOpened():
-                    ret, frame = CAPTURE.read()
+                while self.cap.isOpened():
+                    ret, frame = self.cap.read()
                     if not ret: # frame not captured
                         print("The video has no frames")
                     
@@ -91,4 +91,11 @@ class Camera:
             # 4º arg: style for the circles (landmarks)
             # ==========================================================
             
+            for i, landmark in enumerate(hand_landmarks.landmark):
+                coords = f"{i}: ({landmark.x:.2f}, {landmark.y:.2f})"
+                width  = int(self.cap.get(cv.CAP_PROP_FRAME_WIDTH))
+                height = int(self.cap.get(cv.CAP_PROP_FRAME_HEIGHT))
+                px = int(landmark.x * width)
+                py = int(landmark.y * height)
+                cv.putText(img=image, text=coords, org=(px + 30, py), fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=0.5, thickness=1, color=(0, 0, 0), lineType = cv.LINE_AA)
             
