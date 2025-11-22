@@ -13,7 +13,8 @@ class Camera:
         # Pygame structure
         self.mixer = pygame.mixer
         self.mixer.init()
-        self.mixer.music.load("C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/assets/boing.mp3")
+        self.audio_channel = self.mixer.Channel(0)
+        self.boing = self.mixer.Sound("C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/assets/boing.mp3")
 
         # MediaPipe structure
         self.mp_hands = mp.solutions.hands 
@@ -41,7 +42,9 @@ class Camera:
                     ret, frame = CAPTURE.read()
                     if not ret: # frame not captured
                         print("The video has no frames")
-                        
+                    
+                    # Mirror the frame
+                    frame = cv.flip(frame, 1)
                     # Make detections
                     results = hand_detector.process(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
                     if results.multi_hand_landmarks: # Avoid None for the drawing func
@@ -82,14 +85,11 @@ class Camera:
             # 4º arg: style for the circles (landmarks)
             # ==========================================================
             
-            coord = tuple(
-                (int(hand_landmarks.landmark[self.mp_hands.HandLandmark.WRIST].x * image.shape[1]) - 30,
-                 int(hand_landmarks.landmark[self.mp_hands.HandLandmark.WRIST].y * image.shape[0]) + 30)
-            )
-            label = handedness.classification[0].label
-            if label == "Left":
-                if self.mixer.music.get_busy():
+            label = handedness.classification[0].label # classification is a list of all possible classes for the hand, so the 0 is the more accurate one
+            score = handedness.classification[0].score
+            if label == "Left" and score > 0.8:
+                if self.audio_channel.get_busy():
                     continue # already playing
-                self.mixer.music.play()
-                time.sleep(1)
-                self.mixer.music.stop()
+                self.audio_channel.play(self.boing)
+            elif label == "Left" and score <= 0.8:
+                print("Left hand detected, but confidence too low")
