@@ -108,6 +108,46 @@ This attribute provides **true 3D coordinates (in meters)** relative to the wris
 
 ## Milestones
 
-### Draw Landmarks
+### 🎯 Draw Landmarks
 
-### Draw Bounding Boxes
+The `draw_landmarks` step is responsible for rendering the detected hands on the frame using MediaPipe’s landmarks:
+
+- Iterates over each detected hand and its corresponding handedness (`Left` / `Right`).
+- Colors are used to visually distinguish hands:
+  - **Right hand** → `RGB(235, 137, 52)`
+  - **Left hand** → `RGB(235, 52, 113)`
+- A **confidence-based color** is also computed for the landmarks (`score_color`), transitioning from yellow to green depending on the detection score.
+- Uses `mp_drawing.draw_landmarks(...)` to draw:
+  - the 21 hand landmarks,
+  - the connections between them,
+  - custom styles for points and lines.
+
+On top of that, `draw_landmarks` also calls:
+
+- `draw_landmark_names(...)` → optionally draws the landmark index or coordinates next to each point, depending on the current `capture_mode` (useful for debugging and gesture design).
+- `draw_bounding_box(...)` → draws a bounding box around the hand based on key landmarks.
+
+![Landmarks](./docs/image.png)
+
+This milestone provides a **clear visual representation of the hand pose**, making it easier to reason about gestures and interactions.
+
+### 🟩 Draw Bounding Boxes
+
+The `draw_bounding_box` step computes and draws a rough bounding box around the detected hand:
+
+- Converts the normalized landmark coordinates (from MediaPipe) into pixel coordinates using the current frame size.
+- Uses specific landmarks as reference points:
+  - `4` → thumb tip  
+  - `12` → middle finger tip  
+  - `20` → pinky tip  
+  - `0` → wrist (hand base)
+- Builds a rectangle from these landmarks and adds a small padding (`± 20px`) to avoid a tight crop.
+- Draws the final box with `cv.rectangle(...)` in green.
+
+This milestone is the basis for:
+
+- **Region-of-interest processing**
+- **Gesture-based UI elements**
+- Future features like cropping the hand area, tracking, or triggering effects when the hand enters a certain region.
+
+![Landmarks with Bounding Box](./docs/landmarks_with_bb.png)
