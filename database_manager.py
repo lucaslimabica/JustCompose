@@ -1,9 +1,8 @@
 import sqlite3
 
-con = sqlite3.connect("justcompese.db")
-cursor = con.cursor()
 
 def create_table_gesture():
+    _, cursor = connect_database()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS gesture (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -16,6 +15,7 @@ def create_table_gesture():
     """)
     
 def create_table_gesture_condition():
+    _, cursor = connect_database()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS gesture_condition (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,10 +36,16 @@ def create_table_gesture_condition():
     """)
     
 def initialize_database():
+    con, _ = connect_database()
     create_table_gesture()
     create_table_gesture_condition()
     con.commit()
     con.close()
+    
+def connect_database():
+    con = sqlite3.connect("justcompese.db")
+    cursor = con.cursor()
+    return con, cursor
 
 def create_gesture(name, description="", sound_file="./assets/boing.mp3") -> int:
     """
@@ -53,6 +59,7 @@ def create_gesture(name, description="", sound_file="./assets/boing.mp3") -> int
     Returns:
         int: ID of the newly created gesture
     """
+    con, cursor = connect_database()
     cursor.execute("""
         INSERT INTO gesture (name, description, sound_file)
         VALUES (?, ?, ?)
@@ -72,6 +79,7 @@ def create_gesture_condition(gesture_id, landmark_a, operator, landmark_b, axis,
         axis (str): Axis for comparison ("x" or "y")
         hand_side (str, optional): Side of the hand ("left", "right", "any"). Defaults to "any"
     """
+    con, cursor = connect_database()
     cursor.execute("""
         INSERT INTO gesture_condition (gesture_id, landmark_a, operator, landmark_b, axis, hand_side)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -79,4 +87,25 @@ def create_gesture_condition(gesture_id, landmark_a, operator, landmark_b, axis,
     con.commit()
     return cursor.lastrowid
 
-initialize_database()
+# Example usage
+def example():
+    initialize_database()
+
+    # Creating a sample gesture and its conditions
+    gesture = create_gesture("Number One", "Index finger pointing up gesture")
+
+    # Index finger up condition
+    create_gesture_condition(gesture, 8, "<", 6, "y")  # Index tip above index pip (at y-axis the smaller the value, the higher it is)
+    create_gesture_condition(gesture, 7, "<", 6, "y")
+    create_gesture_condition(gesture, 6, "<", 5, "y")
+
+    # Other fingers down condition
+    create_gesture_condition(gesture, 4, ">", 6, "y")
+    create_gesture_condition(gesture, 12, ">", 9, "y")
+    create_gesture_condition(gesture, 16, ">", 13, "y")
+    create_gesture_condition(gesture, 20, ">", 17, "y")
+
+    # Thumb position condition (thumb tip to the side of the hand)
+    create_gesture_condition(gesture, 4, ">", 6, "x", hand_side="right")
+    create_gesture_condition(gesture, 4, "<", 6, "x", hand_side="left")
+    
