@@ -52,7 +52,6 @@ class Camera:
         self.device = device
         self.compatible_file_types = ('.jpg', '.jpeg', '.png')
         self.capture_mode = capture_mode 
-        
     
     def capture(self):
         """
