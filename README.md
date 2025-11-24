@@ -147,3 +147,44 @@ This milestone is the basis for:
 - Future features like cropping the hand area, tracking, or triggering effects when the hand enters a certain region.
 
 ![Landmarks with Bounding Box](./docs/landmarks_with_bb.png)
+
+---
+
+## Database
+
+The databse is based on two tables, gestures and theirs conditions
+a gesture has an id, name, description and sound_file
+'name': 'Number One',
+'description': 'Index finger pointing up gesture',
+'sound': './assets/boing.mp3',
+
+and a gesture-condition has an id, gesture_id, landmark_a, landmark_b, operator, axis and hand_side
+gesture_id: 1, 'a': 8, 'op': '<', 'b': 6, 'axis': 'y', 'side': 'any'
+gesture_id: 1, 'a': 7, 'op': '<', 'b': 6, 'axis': 'y', 'side': 'any'
+gesture_id: 1, 'a': 6, 'op': '<', 'b': 5, 'axis': 'y', 'side': 'any'
+gesture_id: 1, 'a': 4, 'op': '>', 'b': 6, 'axis': 'y', 'side': 'any'
+gesture_id: 1, 'a': 12, 'op': '>', 'b': 9, 'axis': 'y', 'side': 'any'
+gesture_id: 1, 'a': 16, 'op': '>', 'b': 13, 'axis': 'y', 'side': 'any'
+gesture_id: 1, 'a': 20, 'op': '>', 'b': 17, 'axis': 'y', 'side': 'any'
+gesture_id: 1, 'a': 4, 'op': '>', 'b': 6, 'axis': 'x', 'side': 'right'
+gesture_id: 1, 'a': 4, 'op': '<', 'b': 6, 'axis': 'x', 'side': 'left'
+
+then, when connected the structure must be this one:
+{
+  1: {
+    'name': 'Number One',
+    'description': 'Index finger pointing up gesture',
+    'sound': './assets/boing.mp3',
+    'conditions': [
+        {'a': 8, 'op': '<', 'b': 6, 'axis': 'y', 'side': 'any'},
+        {'a': 7, 'op': '<', 'b': 6, 'axis': 'y', 'side': 'any'},
+        {'a': 6, 'op': '<', 'b': 5, 'axis': 'y', 'side': 'any'},
+        {'a': 4, 'op': '>', 'b': 6, 'axis': 'y', 'side': 'any'},
+        {'a': 12, 'op': '>', 'b': 9, 'axis': 'y', 'side': 'any'},
+        {'a': 16, 'op': '>', 'b': 13, 'axis': 'y', 'side': 'any'},
+        {'a': 20, 'op': '>', 'b': 17, 'axis': 'y', 'side': 'any'},
+        {'a': 4, 'op': '>', 'b': 6, 'axis': 'x', 'side': 'right'},
+        {'a': 4, 'op': '<', 'b': 6, 'axis': 'x', 'side': 'left'}
+    ]
+  }
+}

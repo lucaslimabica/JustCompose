@@ -87,6 +87,47 @@ def create_gesture_condition(gesture_id, landmark_a, operator, landmark_b, axis,
     con.commit()
     return cursor.lastrowid
 
+def load_all_gestures():
+    """
+    Loads all gestures and their associated conditions from the database
+    
+    Returns:
+        dict: Dict of all gestures with their conditions as keys
+    """
+    con, cursor = connect_database()
+    query = """
+    SELECT g.id, g.name, g.description, g.sound_file,
+           c.landmark_a, c.operator, c.landmark_b, c.axis, c.hand_side
+    FROM gesture g
+    JOIN gesture_condition c ON g.id = c.gesture_id
+    ORDER BY g.id;
+    """
+
+    rows = cursor.execute(query).fetchall()
+    
+    gestures = {}
+
+    for row in rows:
+        gid = row[0]
+
+        if gid not in gestures:
+            gestures[gid] = {
+                "name": row[1],
+                "description": row[2],
+                "sound": row[3],
+                "conditions": []
+            }
+
+        gestures[gid]["conditions"].append({
+            "a": row[4],
+            "op": row[5],
+            "b": row[6],
+            "axis": row[7],
+            "side": row[8]
+        })
+
+    return gestures
+
 # Example usage
 def example():
     initialize_database()
@@ -109,3 +150,6 @@ def example():
     create_gesture_condition(gesture, 4, ">", 6, "x", hand_side="right")
     create_gesture_condition(gesture, 4, "<", 6, "x", hand_side="left")
     
+
+gestures = load_all_gestures()
+print(gestures)
