@@ -97,8 +97,10 @@ class Camera:
             # 3º arg: the connections between the landmarks
             # 4º arg: style for the circles (landmarks)
             # ==========================================================
+            self.draw_landmark_names(image, hand_landmarks)
             
-            for i, landmark in enumerate(hand_landmarks.landmark):
+    def draw_landmark_names(self, image, hand_landmarks):
+        for i, landmark in enumerate(hand_landmarks.landmark):
                 # Depending on the capture mode, display differents texts,
                 # perfect for debugging and development of gesture recognition
                 coords = ""
@@ -113,3 +115,8 @@ class Camera:
                 py = int(landmark.y * height)
                 cv.putText(img=image, text=coords, org=(px + 30, py), fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=0.5, thickness=1, color=(0, 0, 0), lineType = cv.LINE_AA)
             
+    def draw_bounding_box(self, image, hand_landmarks):
+        # Calculate bounding box
+        # the most left, right, top and bottom points are based on the landmark
+        # 0 is the hand base, 4 is the thumb tip, 8 is the index finger tip, 12 is the middle finger tip, 16 is the ring finger tip, 20 is the pinky tip
+        pass
