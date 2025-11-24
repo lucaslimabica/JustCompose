@@ -104,3 +104,10 @@ This attribute provides **true 3D coordinates (in meters)** relative to the wris
 | ---------------------------- | -------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `multi_hand_world_landmarks` | `List[LandmarkList]` | Landmarks in realistic 3D space, unaffected by image scaling or distance from the camera. | **Scale-invariant gestures** → useful for advanced control where hand size or distance must not affect detection. |
 
+-----
+
+## Milestones
+
+### Draw Landmarks
+
+### Draw Bounding Boxes

@@ -98,6 +98,7 @@ class Camera:
             # 4º arg: style for the circles (landmarks)
             # ==========================================================
             self.draw_landmark_names(image, hand_landmarks)
+            self.draw_bounding_box(image, hand_landmarks.landmark)
             
     def draw_landmark_names(self, image, hand_landmarks):
         for i, landmark in enumerate(hand_landmarks.landmark):
@@ -119,4 +120,10 @@ class Camera:
         # Calculate bounding box
         # the most left, right, top and bottom points are based on the landmark
         # 0 is the hand base, 4 is the thumb tip, 8 is the index finger tip, 12 is the middle finger tip, 16 is the ring finger tip, 20 is the pinky tip
-        pass
+        width  = int(self.cap.get(cv.CAP_PROP_FRAME_WIDTH))
+        height = int(self.cap.get(cv.CAP_PROP_FRAME_HEIGHT))
+        x1 = int(hand_landmarks[4].x * width) - 20
+        y1 = int(hand_landmarks[12].y * height) - 20
+        x2 = int(hand_landmarks[20].x * width) + 20
+        y2 = int(hand_landmarks[0].y * height) + 20
+        cv.rectangle(img=image, pt1=(x1, y1), pt2=(x2, y2), color=(0, 255, 0), thickness=2)
