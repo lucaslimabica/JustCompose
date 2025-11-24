@@ -6,17 +6,36 @@ import database_manager
 
 
 class Camera:
-    # Handling with the capture from the source
-    # to then send the landmark to an analyzer class
+    """
+    Main camera handler for motion capture and gesture recognition.
+    This class is responsible for:
+    - Capturing frames from a video source (webcam or image file)
+    - Running MediaPipe Hands on each frame
+    - Drawing landmarks, labels, and bounding boxes
+    - Recognizing gestures based on conditions stored in the database
+    """
     
     def __init__(self, name="Just Compose Beta", device=0, capture_mode=None):
-        """TODO _summary_
+        """
+        Initialize the Camera
 
         Args:
-            name (str, optional): _description_. Defaults to "Just Compose Beta".
-            device (int, optional): _description_. Defaults to 0.
-            capture_mode (str, optional): Determines wich text will be displayed on the screen.
-            Options -> landmarks, landmarks_names, landmarks_coords, None. Defaults to None.
+            name (str, optional):
+                Window title used by OpenCV when displaying the frames.
+                Defaults to "Just Compose Beta".
+            device (int | str, optional):
+                Capture source.
+                - If `int`, it is treated as an OpenCV camera index (0 for default webcam).
+                - If `str` and the path ends with a compatible extension
+                  ('.jpg', '.jpeg', '.png'), it is treated as an image file path.
+                Defaults to 0.
+            capture_mode (str | None, optional):
+                Controls which text overlays are drawn on top of the detected landmarks.
+                Supported values:
+                    - "landmarks"         → draw only the landmark indices
+                    - "landmarks_coords"  → draw landmark indices + normalized coordinates
+                    - None                → do not draw any landmark labels
+                Defaults to None.
         """
         # Pygame structure
         self.mixer = pygame.mixer
@@ -36,6 +55,24 @@ class Camera:
         
     
     def capture(self):
+        """
+        Start the capture loop AND process frames from the configured device with MediaPipe Hands
+
+        Behavior:
+            - If `self.device` is an integer:
+                * Opens a VideoCapture stream.
+                * Processes frames in real time.
+                * Runs MediaPipe Hands on each frame.
+                * Draws landmarks and recognized gestures if any.
+            - If `self.device` is a string and points to an image file:
+                * Loads the image.
+                * Runs MediaPipe Hands once.
+                * Draws landmarks and recognized gestures.
+
+        This method blocks until:
+            - The window is closed, or
+            - The user presses ESC, 'q', or 'l'.
+        """
         if self.device == 0:        
             with self.mp_hands.Hands() as hand_detector:
                 self.cap = cv.VideoCapture(self.device)
@@ -76,6 +113,21 @@ class Camera:
                 cv.destroyAllWindows()
                 
     def draw_landmarks(self, image, results):
+        """
+        Draw hand landmarks, connections, labels, and recognized gestures
+        Args:
+            image (numpy.ndarray):
+                Current frame (BGR) where the landmarks and overlays will be drawn.
+            results (mediapipe.framework.formats.landmark_pb2.NormalizedLandmarkList):
+                The result object returned from `mp_hands.Hands.process(...)`,
+                containing `multi_hand_landmarks` and `multi_handedness`.
+
+        Behavior:
+            - Iterates over each detected hand and its handedness.
+            - Draws the hand landmarks and connections using MediaPipe's drawing utilities.
+            - Optionally calls `draw_landmark_names` depending on `self.capture_mode`.
+            - Calls `recognize_gesture` to try to match the hand against database gestures.
+        """
         for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
             label = handedness.classification[0].label # classification is a list of all possible classes for the hand, so the 0 is the more accurate one
             score = handedness.classification[0].score
@@ -103,9 +155,23 @@ class Camera:
             self.recognize_gesture(image=image, hand_landmarks=hand_landmarks.landmark, label=label)
             
     def draw_landmark_names(self, image, hand_landmarks, mode):
-        for i, landmark in enumerate(hand_landmarks.landmark):
-                # Depending on the capture mode, display differents texts,
-                # perfect for debugging and development of gesture recognition
+        """
+        Draw landmark indices or coordinates next to each hand landmark
+
+        Args:
+            image (numpy.ndarray):
+                Current frame (BGR) where the text labels will be drawn.
+            hand_landmarks:
+                A MediaPipe `NormalizedLandmarkList` instance for a SINGLE HAND
+                (the object from `results.multi_hand_landmarks[i]`).
+                THIS IS THE HAND WITH THE LANDMARKS WITHIN THE ARRAY.
+            mode (str):
+                Controls what text is displayed:
+                    - "landmarks"         → only the landmark index (0–20).
+                    - "landmarks_coords"  → index + normalized (x, y) coordinates.
+        """
+        for i, landmark in enumerate(hand_landmarks.landmark): # Iterate over each landmark of the hand
+                # Depending on the capture mode, display differents texts
                 coords = ""
                 if mode == "landmarks_coords":
                     coords = f"{i}: ({landmark.x:.2f}, {landmark.y:.2f})"
@@ -119,9 +185,24 @@ class Camera:
                 cv.putText(img=image, text=coords, org=(px + 30, py), fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=0.5, thickness=1, color=(0, 0, 0), lineType = cv.LINE_AA)
             
     def draw_bounding_box(self, image, hand_landmarks) -> tuple:
-        # Calculate bounding box
-        # the most left, right, top and bottom points are based on the landmark
-        # 0 is the hand base, 4 is the thumb tip, 8 is the index finger tip, 12 is the middle finger tip, 16 is the ring finger tip, 20 is the pinky tip
+        """
+        Draw a bounding box around the hand and return its coordinates
+        The bounding box is computed using the min/max of the normalized
+        x/y coordinates of all landmarks, then expanded with a fixed padding.
+
+        Args:
+            image (numpy.ndarray):
+                Current frame (BGR) where the rectangle will be drawn.
+            hand_landmarks (Sequence[NormalizedLandmark]):
+                Iterable of 21 MediaPipe landmarks (`hand_landmarks.landmark`).
+                THIS THE HAND, THE ARRAY OF LANDMARKS.
+
+        Returns:
+            tuple[int, int, int, int]:
+                (x1, y1, x2, y2) pixel coordinates of the bounding box:
+                - (x1, y1) → top-left corner
+                - (x2, y2) → bottom-right corner
+        """
         width  = int(self.cap.get(cv.CAP_PROP_FRAME_WIDTH))
         height = int(self.cap.get(cv.CAP_PROP_FRAME_HEIGHT))
         xs = [landmark.x for landmark in hand_landmarks]
@@ -138,6 +219,25 @@ class Camera:
         return (x1, y1, x2, y2)
         
     def recognize_gesture(self, image, hand_landmarks: list, label: str):
+        """
+        Recognize a gesture for a single hand and draw its name on the image, abocve the bounding box
+
+        Args:
+            image (numpy.ndarray):
+                Current frame (BGR) where the gesture name will be drawn if recognized.
+            hand_landmarks (list):
+                List-like container of MediaPipe `NormalizedLandmark` objects
+                (`hand_landmarks.landmark` from MediaPipe).
+                THIS IS THE HAND, THE ARRAY OF LANDMARKS.
+            label (str):
+                Handedness label returned by MediaPipe, usually `"Right"` or `"Left"`.
+
+        Behavior:
+            - Draws a bounding box around the hand.
+            - Loads all gestures and conditions from the database.
+            - Attempts to match the current hand landmarks against each gesture.
+            - If a gesture matches, its name is rendered above the bounding box.
+        """
         hand = self.draw_bounding_box(image, hand_landmarks)
         gestures = database_manager.load_all_gestures() # load gestures from the database as dicts
         detected = self.recognize_gesture_from_db(hand_landmarks, label, gestures)
@@ -145,6 +245,28 @@ class Camera:
             cv.putText(image, detected["name"], org=(hand[0], hand[1]-10), fontFace=cv.FONT_HERSHEY_SIMPLEX,fontScale= 1, color=(0,255,0), thickness=2)
             
     def condition_is_true(self, hand_landmarks, handedness_label, cond) -> bool:
+        """
+        Evaluate a single gesture condition against the current hand landmarks
+
+        Args:
+            hand_landmarks (list):
+                List-like container of MediaPipe `NormalizedLandmark` objects
+                REPRESENTING A SINGLE HAND
+            handedness_label (str):
+                Handedness label, `"Right"` or `"Left"`.
+            cond (dict):
+                Condition dictionary loaded from the database, with keys:
+                    - "a":    index of the first landmark (int)
+                    - "b":    index of the second landmark (int)
+                    - "op":   comparison operator (str: "<", ">", "<=", ">=", "==")
+                    - "axis": coordinate axis to compare ("x", "y", or "z")
+                    - "side": which hand this condition applies to ("left", "right", "any")
+
+        Returns:
+            bool:
+                True if the condition is satisfied (or does not apply to this hand side),
+                False otherwise.
+        """
         if cond["side"] != "any" and cond["side"] != handedness_label.lower():
             return True  # Condition does not apply to this hand
 
@@ -162,6 +284,35 @@ class Camera:
         return False
 
     def recognize_gesture_from_db(self, hand_landmarks, handedness_label, gestures_db):
+        """
+        Match the current hand landmarks against all gestures in the database.
+
+        Args:
+            hand_landmarks (list):
+                List-like container of MediaPipe `NormalizedLandmark` objects
+                REPRESENTING A SINGLE HAND
+            handedness_label (str):
+                Handedness label, `"Right"` or `"Left"`.
+            gestures_db (dict):
+                Dictionary of gestures as loaded from the database. Expected format:
+                {
+                    gesture_id: {
+                        "name": str,
+                        "description": str,
+                        "sound": str,
+                        "conditions": [
+                            {"a": int, "op": str, "b": int, "axis": str, "side": str},
+                            ...
+                        ]
+                    },
+                    ...
+                }
+
+        Returns:
+            dict | None:
+                The first matching gesture dictionary if all its conditions
+                evaluate to True, or None if no gesture matches.
+        """
         for gid, gesture in gestures_db.items():
             match = True
 
