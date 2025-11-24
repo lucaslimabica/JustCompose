@@ -2,7 +2,7 @@ from cam import Camera
 import pygame
 import sys
 
-# --- Constants ---------------------------------------------------------
+# -- | Constants | --
 
 WINDOW_SIZE = (720, 720)
 BG_COLOR = (60, 25, 60)
@@ -11,7 +11,7 @@ COLOR_WHITE = (255, 255, 255)
 COLOR_BUTTON_LIGHT = (170, 170, 170)
 COLOR_BUTTON_DARK = (100, 100, 100)
 
-BUTTON_SIZE = (180, 50)
+BUTTON_SIZE = (250, 60)
 
 
 def main():
@@ -23,7 +23,7 @@ def main():
     - Closing the window or pressing ESC quits the app.
     """
     pygame.init()
-    pygame.display.set_caption("JustCompose – Main Menu")
+    pygame.display.set_caption("JustCompose | Main Menu")
 
     screen = pygame.display.set_mode(WINDOW_SIZE)
     clock = pygame.time.Clock()
@@ -33,7 +33,7 @@ def main():
     button_rect = pygame.Rect(0, 0, *BUTTON_SIZE)
     button_rect.center = (width // 2, height // 2)
     font = pygame.font.SysFont("Corbel", 32)
-    button_text = font.render("Start Capture", True, COLOR_WHITE)
+    button_text = font.render("Start Composing", True, COLOR_WHITE)
 
     # Prepare camera instance
     cam = Camera(device=0)
