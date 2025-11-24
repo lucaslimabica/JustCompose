@@ -153,13 +153,13 @@ class Camera:
         if cond["side"] != "any" and cond["side"] != handedness_label.lower():
             return True  # Condition does not apply to this hand
 
-        la = hand_landmarks[cond["a"]]
-        lb = hand_landmarks[cond["b"]]
+        la = hand_landmarks[cond["landmark_a"]]
+        lb = hand_landmarks[cond["landmark_b"]]
 
         va = getattr(la, cond["axis"])
         vb = getattr(lb, cond["axis"])
 
-        op = cond["op"]
+        op = cond["operator"]
 
         if op == "<":  return va < vb
         if op == ">":  return va > vb
