@@ -150,26 +150,87 @@ This milestone is the basis for:
 
 ---
 
-## Database
+## 🗄️ The Database Structure
+This section describes the database schema used to store, configure, and recognize custom hand gestures for motion capture and real-time interaction.
+The system is built on **two relational tables**:
 
-The databse is based on two tables, gestures and theirs conditions
-a gesture has an id, name, description and sound_file
-'name': 'Number One',
-'description': 'Index finger pointing up gesture',
-'sound': './assets/boing.mp3',
+* `gestures` → High-level metadata
+* `gesture_conditions` → Mathematical landmark-based constraints
 
-and a gesture-condition has an id, gesture_id, landmark_a, landmark_b, operator, axis and hand_side
-gesture_id: 1, 'a': 8, 'op': '<', 'b': 6, 'axis': 'y', 'side': 'any'
-gesture_id: 1, 'a': 7, 'op': '<', 'b': 6, 'axis': 'y', 'side': 'any'
-gesture_id: 1, 'a': 6, 'op': '<', 'b': 5, 'axis': 'y', 'side': 'any'
-gesture_id: 1, 'a': 4, 'op': '>', 'b': 6, 'axis': 'y', 'side': 'any'
-gesture_id: 1, 'a': 12, 'op': '>', 'b': 9, 'axis': 'y', 'side': 'any'
-gesture_id: 1, 'a': 16, 'op': '>', 'b': 13, 'axis': 'y', 'side': 'any'
-gesture_id: 1, 'a': 20, 'op': '>', 'b': 17, 'axis': 'y', 'side': 'any'
-gesture_id: 1, 'a': 4, 'op': '>', 'b': 6, 'axis': 'x', 'side': 'right'
-gesture_id: 1, 'a': 4, 'op': '<', 'b': 6, 'axis': 'x', 'side': 'left'
+This structure allows gestures to be **fully data-driven**, editable without modifying code, and easily expandable.
 
-then, when connected the structure must be this one:
+### 🧩 Table: `gesture`
+
+The `gesture` table stores descriptive and functional information about each gesture.
+
+| Field         | Type    | Description                                                | Example                      |
+| ------------- | ------- | ---------------------------------------------------------- | ---------------------------- |
+| `id`          | Integer | Primary key, unique identifier for the gesture             | `1`                          |
+| `name`        | String  | Human-readable name of the gesture                         | `'Number One'`               |
+| `description` | Text    | Explanation of what the gesture represents or how it looks | `'Index finger pointing up'` |
+| `sound_file`  | String  | Relative path to the audio triggered on recognition        | `'./assets/boing.mp3'`       |
+
+### Example record
+
+```python
+{
+  'id': 1,
+  'name': 'Number One',
+  'description': 'Index finger pointing up gesture',
+  'sound_file': './assets/boing.mp3'
+}
+```
+
+### 🧠 Table: `gesture_condition`
+
+The `gesture_conditions` table defines the **mathematical rules** that must hold true for a gesture to be considered recognized.
+Each row corresponds to **one Boolean condition** derived from MediaPipe’s 21 normalized hand landmarks.
+
+| Field        | Type    | Description                                                          | Example         |
+| ------------ | ------- | -------------------------------------------------------------------- | --------------- |
+| `id`         | Integer | Primary key for the condition                                        | `1`             |
+| `gesture_id` | Integer | Foreign key → links to the `gestures` table                          | `1`             |
+| `landmark_a` | Integer | MediaPipe landmark ID (0–20), first operand                          | `8` (Index tip) |
+| `operator`   | String  | Comparison operator (`<`, `>`, `<=`, `>=`, `==`)                     | `'<'`           |
+| `landmark_b` | Integer | MediaPipe landmark ID used as the second operand                     | `6` (Index PIP) |
+| `axis`       | String  | Axis to compare: `'x'`, `'y'`, `'z'`                                 | `'y'`           |
+| `hand_side`  | String  | Which hand the condition applies to: `'left'`, `'right'`, or `'any'` | `'any'`         |
+
+#### Example rows (gesture “Number One”)
+
+```
+gesture_id, a, op, b, axis, hand_side, description
+1,8,<,6,y,any,Index tip (8) is above PIP (6)
+1,7,<,6,y,any,Index DIP (7) is above PIP (6)
+1,6,<,5,y,any,Index PIP (6) is above MCP (5)
+1,4,>,6,y,any,Thumb tip (4) is below PIP (6)
+1,12,>,9,y,any,Middle finger folded
+1,16,>,13,y,any,Ring finger folded
+1,20,>,17,y,any,Pinky finger folded
+1,4,>,6,x,right,Right hand → thumb right of index base
+1,4,<,6,x,left,Left hand → thumb left of index base
+```
+
+### 🧮 How Conditions Work
+
+A condition such as:
+
+```
+8.y < 6.y
+```
+
+Means:
+
+> The Y-coordinate of landmark 8 (index fingertip) must be **less than** the Y-coordinate of landmark 6 (index PIP joint).
+> Since Y decreases upward in MediaPipe, this confirms the **index finger is extended upwards**.
+
+This representation allows gestures to be defined entirely through **mathematical relationships** in 3D space.
+
+## 🔗 Final Combined Data Structure
+
+When loaded from the database and connected inside the gesture recognizer, all conditions belonging to a gesture are grouped under the same ID:
+
+```python
 {
   1: {
     'name': 'Number One',
@@ -180,11 +241,19 @@ then, when connected the structure must be this one:
         {'a': 7, 'op': '<', 'b': 6, 'axis': 'y', 'side': 'any'},
         {'a': 6, 'op': '<', 'b': 5, 'axis': 'y', 'side': 'any'},
         {'a': 4, 'op': '>', 'b': 6, 'axis': 'y', 'side': 'any'},
-        {'a': 12, 'op': '>', 'b': 9, 'axis': 'y', 'side': 'any'},
-        {'a': 16, 'op': '>', 'b': 13, 'axis': 'y', 'side': 'any'},
-        {'a': 20, 'op': '>', 'b': 17, 'axis': 'y', 'side': 'any'},
+        {'a': 12, 'op': '>', 9, 'axis': 'y', 'side': 'any'},
+        {'a': 16, 'op': '>', 13, 'axis': 'y', 'side': 'any'},
+        {'a': 20, 'op': '>', 17, 'axis': 'y', 'side': 'any'},
         {'a': 4, 'op': '>', 'b': 6, 'axis': 'x', 'side': 'right'},
         {'a': 4, 'op': '<', 'b': 6, 'axis': 'x', 'side': 'left'}
     ]
   }
 }
+```
+
+This unified structure enables the recognizer to:
+
+1. Load gestures dynamically
+2. Validate all conditions for each gesture
+3. Trigger the associated action immediately
+
