@@ -149,7 +149,7 @@ class Camera:
             py = int(ys[8] * height)
             cv.putText(img=image, text="Pointing gesture", org=(hand[0], hand[1]-10), fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=0.5, thickness=1, color=(0, 0, 0), lineType = cv.LINE_AA)
     
-    def condition_is_true(self, hand_landmarks, handedness_label, cond):
+    def condition_is_true(self, hand_landmarks, handedness_label, cond) -> bool:
         if cond["side"] != "any" and cond["side"] != handedness_label.lower():
             return True  # Condition does not apply to this hand
 
@@ -166,3 +166,16 @@ class Camera:
 
         return False
 
+    def recognize_gesture_from_db(self, hand_landmarks, handedness_label, gestures_db):
+        for gid, gesture in gestures_db.items():
+            match = True
+
+            for cond in gesture["conditions"]:
+                if not self.condition_is_true(hand_landmarks, handedness_label, cond):
+                    match = False # condition failed cause its different
+                    break
+
+            if match:
+                return gesture  # find the first matching gesture
+
+        return None
