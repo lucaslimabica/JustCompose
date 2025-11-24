@@ -136,11 +136,7 @@ This milestone provides a **clear visual representation of the hand pose**, maki
 The `draw_bounding_box` step computes and draws a rough bounding box around the detected hand:
 
 - Converts the normalized landmark coordinates (from MediaPipe) into pixel coordinates using the current frame size.
-- Uses specific landmarks as reference points:
-  - `4` → thumb tip  
-  - `12` → middle finger tip  
-  - `20` → pinky tip  
-  - `0` → wrist (hand base)
+- Uses the most left, right, top and bottom landmarks as reference points:
 - Builds a rectangle from these landmarks and adds a small padding (`± 20px`) to avoid a tight crop.
 - Draws the final box with `cv.rectangle(...)` in green.
 
