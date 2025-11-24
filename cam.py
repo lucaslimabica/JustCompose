@@ -8,7 +8,15 @@ class Camera:
     # Handling with the capture from the source
     # to then send the landmark to an analyzer class
     
-    def __init__(self, name="Just Compose Beta", device=0):
+    def __init__(self, name="Just Compose Beta", device=0, capture_mode=None):
+        """TODO _summary_
+
+        Args:
+            name (str, optional): _description_. Defaults to "Just Compose Beta".
+            device (int, optional): _description_. Defaults to 0.
+            capture_mode (str, optional): Determines wich text will be displayed on the screen.
+            Options -> landmarks, landmarks_names, landmarks_coords, None. Defaults to None.
+        """
         # Pygame structure
         self.mixer = pygame.mixer
         self.mixer.init()
@@ -23,9 +31,8 @@ class Camera:
         self.name = name
         self.device = device
         self.compatible_file_types = ('.jpg', '.jpeg', '.png')
+        self.capture_mode = capture_mode 
         
-        # Start the capture (the main function of the class)
-        self.capture()
     
     def capture(self):
         if self.device == 0:        
@@ -92,7 +99,14 @@ class Camera:
             # ==========================================================
             
             for i, landmark in enumerate(hand_landmarks.landmark):
-                coords = f"{i}: ({landmark.x:.2f}, {landmark.y:.2f})"
+                # Depending on the capture mode, display differents texts,
+                # perfect for debugging and development of gesture recognition
+                coords = ""
+                if self.capture_mode == "landmarks_coords":
+                    coords = f"{i}: ({landmark.x:.2f}, {landmark.y:.2f})"
+                elif self.capture_mode == "landmarks":
+                    coords = f"{i}"
+                    
                 width  = int(self.cap.get(cv.CAP_PROP_FRAME_WIDTH))
                 height = int(self.cap.get(cv.CAP_PROP_FRAME_HEIGHT))
                 px = int(landmark.x * width)
