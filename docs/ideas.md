@@ -8,6 +8,6 @@ Contras: Gestos mais simples são os únicos  possíveis, basicamente baseado em
 
 - Funções booleanas
 Monto fórmulas para cada gesto, pois isto é um plano cartesiano, onde y5 precisa ser maior que y7, assim determino um gesto
-![formula](./docs/formula.png)
+![formula](formula.png)
 Prós: Permite uma infinidade de gestos, tipo, 2 elevado a 42
 Contra: Bah preciso fazer muuuuuuuuitos cálculos kkkkkk
