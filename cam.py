@@ -77,39 +77,55 @@ class Camera:
                 self.cap = cv.VideoCapture(self.device)
                 if not self.cap.isOpened(): 
                     print("No video source :(")
-                    exit(1)
-                    
+                    return
+
                 while self.cap.isOpened():
                     ret, frame = self.cap.read()
-                    if not ret: # frame not captured
+                    if not ret:  # frame not captured
                         print("The video has no frames")
-                    
+                        break
+
                     # Mirror the frame
                     frame = cv.flip(frame, 1)
                     # Make detections
                     results = hand_detector.process(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
-                    if results.multi_hand_landmarks: # Avoid None for the drawing func
-                        # Call the drawing func
+                    if results.multi_hand_landmarks:  # Avoid None for the drawing func
                         self.draw_landmarks(frame, results)
+
                     cv.imshow(self.name, frame)
                     
                     key = cv.waitKey(1)
+                    # Keyboard LEGACY
                     if key in [27, ord("q"), ord("l")]:
                         break
+                    if cv.getWindowProperty(self.name, cv.WND_PROP_VISIBLE) < 1:
+                        break
+                    
+                # Break of the loop -> Release resources
+                self.cap.release()
+                cv.destroyAllWindows()
+
                 
         elif isinstance(self.device, str) and self.device.endswith(self.compatible_file_types):
             image = cv.imread(self.device)
 
             with self.mp_hands.Hands(static_image_mode=True) as hand_detector:
-                # Make detections
                 results = hand_detector.process(cv.cvtColor(image, cv.COLOR_BGR2RGB))
-                if results.multi_hand_landmarks: # Avoid None for the drawing func
-                    # Call the drawing func
+                if results.multi_hand_landmarks:
                     self.draw_landmarks(image, results)
 
                 cv.imshow(self.name, image)
-                cv.waitKey(0)
+
+                while True:
+                    key = cv.waitKey(1) 
+                    # Keyboard LEGACY
+                    if key in [27, ord("q"), ord("l")]:
+                        break
+                    if cv.getWindowProperty(self.name, cv.WND_PROP_VISIBLE) < 1:
+                        break
+                    
                 cv.destroyAllWindows()
+
                 
     def draw_landmarks(self, image, results):
         """
