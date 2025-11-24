@@ -2,6 +2,7 @@
 import cv2 as cv
 import mediapipe as mp
 import pygame
+import database_manager
 
 
 class Camera:
@@ -147,4 +148,21 @@ class Camera:
             px = int(xs[8] * width)
             py = int(ys[8] * height)
             cv.putText(img=image, text="Pointing gesture", org=(hand[0], hand[1]-10), fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=0.5, thickness=1, color=(0, 0, 0), lineType = cv.LINE_AA)
-        
+    
+    def condition_is_true(self, hand_landmarks, handedness_label, cond):
+        if cond["side"] != "any" and cond["side"] != handedness_label.lower():
+            return True  # Condition does not apply to this hand
+
+        la = hand_landmarks[cond["a"]]
+        lb = hand_landmarks[cond["b"]]
+
+        va = getattr(la, cond["axis"])
+        vb = getattr(lb, cond["axis"])
+
+        op = cond["op"]
+
+        if op == "<":  return va < vb
+        if op == ">":  return va > vb
+
+        return False
+

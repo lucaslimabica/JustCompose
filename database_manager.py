@@ -47,6 +47,7 @@ def connect_database():
     cursor = con.cursor()
     return con, cursor
 
+# Functions to interact with the database at the custom modal
 def create_gesture(name, description="", sound_file="./assets/boing.mp3") -> int:
     """
     Creates a new gesture in the database
@@ -87,6 +88,7 @@ def create_gesture_condition(gesture_id, landmark_a, operator, landmark_b, axis,
     con.commit()
     return cursor.lastrowid
 
+# Functions to load gestures and their conditions to validate in each frame there is a recognized gesture
 def load_all_gestures():
     """
     Loads all gestures and their associated conditions from the database
@@ -128,6 +130,9 @@ def load_all_gestures():
 
     return gestures
 
+
+
+
 # Example usage
 def example():
     initialize_database()
@@ -150,6 +155,3 @@ def example():
     create_gesture_condition(gesture, 4, ">", 6, "x", hand_side="right")
     create_gesture_condition(gesture, 4, "<", 6, "x", hand_side="left")
     
-
-gestures = load_all_gestures()
-print(gestures)
