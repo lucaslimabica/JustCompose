@@ -97,17 +97,18 @@ class Camera:
             # 3º arg: the connections between the landmarks
             # 4º arg: style for the circles (landmarks)
             # ==========================================================
-            self.draw_landmark_names(image, hand_landmarks)
-            self.draw_bounding_box(image, hand_landmarks.landmark)
+            if self.capture_mode in ["landmarks", "landmarks_coords"]:
+                self.draw_landmark_names(image, hand_landmarks, self.capture_mode)
+            self.recognize_gesture(image=image, hand_landmarks=hand_landmarks.landmark)
             
-    def draw_landmark_names(self, image, hand_landmarks):
+    def draw_landmark_names(self, image, hand_landmarks, mode):
         for i, landmark in enumerate(hand_landmarks.landmark):
                 # Depending on the capture mode, display differents texts,
                 # perfect for debugging and development of gesture recognition
                 coords = ""
-                if self.capture_mode == "landmarks_coords":
+                if mode == "landmarks_coords":
                     coords = f"{i}: ({landmark.x:.2f}, {landmark.y:.2f})"
-                elif self.capture_mode == "landmarks":
+                elif mode == "landmarks":
                     coords = f"{i}"
                     
                 width  = int(self.cap.get(cv.CAP_PROP_FRAME_WIDTH))
@@ -116,7 +117,7 @@ class Camera:
                 py = int(landmark.y * height)
                 cv.putText(img=image, text=coords, org=(px + 30, py), fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=0.5, thickness=1, color=(0, 0, 0), lineType = cv.LINE_AA)
             
-    def draw_bounding_box(self, image, hand_landmarks):
+    def draw_bounding_box(self, image, hand_landmarks) -> tuple:
         # Calculate bounding box
         # the most left, right, top and bottom points are based on the landmark
         # 0 is the hand base, 4 is the thumb tip, 8 is the index finger tip, 12 is the middle finger tip, 16 is the ring finger tip, 20 is the pinky tip
@@ -133,3 +134,17 @@ class Camera:
         x2 = int(max_x * width) + 20
         y2 = int(max_y * height) + 20
         cv.rectangle(img=image, pt1=(x1, y1), pt2=(x2, y2), color=(0, 255, 0), thickness=2)
+        return (x1, y1, x2, y2)
+        
+    def recognize_gesture(self, image, hand_landmarks: list):
+        hand = self.draw_bounding_box(image, hand_landmarks)
+        ys = [landmark.y for landmark in hand_landmarks]
+        xs = [landmark.x for landmark in hand_landmarks]
+        min_y = min(ys)
+        width  = int(self.cap.get(cv.CAP_PROP_FRAME_WIDTH))
+        height = int(self.cap.get(cv.CAP_PROP_FRAME_HEIGHT))
+        if min_y == ys[8]: # index finger is the most top
+            px = int(xs[8] * width)
+            py = int(ys[8] * height)
+            cv.putText(img=image, text="Pointing gesture", org=(hand[0], hand[1]-10), fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=0.5, thickness=1, color=(0, 0, 0), lineType = cv.LINE_AA)
+        
