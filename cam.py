@@ -100,7 +100,7 @@ class Camera:
             # ==========================================================
             if self.capture_mode in ["landmarks", "landmarks_coords"]:
                 self.draw_landmark_names(image, hand_landmarks, self.capture_mode)
-            self.recognize_gesture(image=image, hand_landmarks=hand_landmarks.landmark)
+            self.recognize_gesture(image=image, hand_landmarks=hand_landmarks.landmark, label=label)
             
     def draw_landmark_names(self, image, hand_landmarks, mode):
         for i, landmark in enumerate(hand_landmarks.landmark):
@@ -137,29 +137,24 @@ class Camera:
         cv.rectangle(img=image, pt1=(x1, y1), pt2=(x2, y2), color=(0, 255, 0), thickness=2)
         return (x1, y1, x2, y2)
         
-    def recognize_gesture(self, image, hand_landmarks: list):
+    def recognize_gesture(self, image, hand_landmarks: list, label: str):
         hand = self.draw_bounding_box(image, hand_landmarks)
-        ys = [landmark.y for landmark in hand_landmarks]
-        xs = [landmark.x for landmark in hand_landmarks]
-        min_y = min(ys)
-        width  = int(self.cap.get(cv.CAP_PROP_FRAME_WIDTH))
-        height = int(self.cap.get(cv.CAP_PROP_FRAME_HEIGHT))
-        if min_y == ys[8]: # index finger is the most top
-            px = int(xs[8] * width)
-            py = int(ys[8] * height)
-            cv.putText(img=image, text="Pointing gesture", org=(hand[0], hand[1]-10), fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=0.5, thickness=1, color=(0, 0, 0), lineType = cv.LINE_AA)
-    
+        gestures = database_manager.load_all_gestures() # load gestures from the database as dicts
+        detected = self.recognize_gesture_from_db(hand_landmarks, label, gestures)
+        if detected:
+            cv.putText(image, detected["name"], org=(hand[0], hand[1]-10), fontFace=cv.FONT_HERSHEY_SIMPLEX,fontScale= 1, color=(0,255,0), thickness=2)
+            
     def condition_is_true(self, hand_landmarks, handedness_label, cond) -> bool:
         if cond["side"] != "any" and cond["side"] != handedness_label.lower():
             return True  # Condition does not apply to this hand
 
-        la = hand_landmarks[cond["landmark_a"]]
-        lb = hand_landmarks[cond["landmark_b"]]
+        la = hand_landmarks[cond["a"]]
+        lb = hand_landmarks[cond["b"]]
 
         va = getattr(la, cond["axis"])
         vb = getattr(lb, cond["axis"])
 
-        op = cond["operator"]
+        op = cond["op"]
 
         if op == "<":  return va < vb
         if op == ">":  return va > vb
