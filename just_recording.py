@@ -1,6 +1,7 @@
 import cv2 as cv
 import mediapipe as mp
 import pygame
+import json
 
 
 class Recorder():
@@ -79,6 +80,12 @@ class Recorder():
                     # Keyboard LEGACY
                     if key in [27, ord("q"), ord("l")]:
                         break
+                    if key == ord("s") and results.multi_hand_landmarks:
+                        for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):    
+                            gesture = self.snapshot_hand_pose(hand_landmarks=hand_landmarks.landmark, handedness_label=handedness.classification[0].label)
+                            print("Snapshot taken:")
+                            print(json.dumps(gesture, indent=2))
+                    
                     if cv.getWindowProperty(self.name, cv.WND_PROP_VISIBLE) < 1:
                         break
                     
@@ -192,6 +199,30 @@ class Recorder():
         cv.rectangle(img=image, pt1=(x1, y1), pt2=(x2, y2), color=(0, 255, 0), thickness=2)
         return (x1, y1, x2, y2)    
     
+    def snapshot_hand_pose(self, hand_landmarks: list, handedness_label: str) -> dict:
+        """
+        Capture the current hand pose (normalized landmarks) as a template dict
+        
+        Args:
+            hand_landmarks (Sequence[NormalizedLandmark]):
+                Iterable of 21 MediaPipe landmarks (`hand_landmarks.landmark`).
+                THIS THE HAND, THE ARRAY OF LANDMARKS.
+            handedness_label (str):
+                "Left" or "Right" label for the detected hand.
+        """
+        pose = {
+            "hand_side": handedness_label.lower(),  # "left" / "right"
+            "landmarks": []
+        }
+
+        for i, lm in enumerate(hand_landmarks):
+            pose["landmarks"].append({
+                "id": i,
+                "x": lm.x,
+                "y": lm.y,
+            })
+
+        return pose
     
 if __name__ == "__main__":
     recorder = Recorder(name="Just Compose Beta", device=0, capture_mode="landmarks_coords")

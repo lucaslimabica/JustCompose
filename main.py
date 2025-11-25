@@ -70,19 +70,19 @@ def main():
                 if btn_compose_rect.collidepoint(mouse_pos):
                     print("Starting Composing...")
                     cam = Camera(device=0)
+                    running = False
                     cam.capture()
                     
                 if btn_record_rect.collidepoint(mouse_pos):
                     print("Starting Recording...")
                     recorder = Recorder()
+                    running = False
                     recorder.capture()
-                    
                     
         
         screen.fill(BG_COLOR)
         draw_button(screen, btn_compose_rect, font, "Start Composing", mouse_pos)
         draw_button(screen, btn_record_rect, font, "Start Recording", mouse_pos)
-
 
         pygame.display.flip()
         clock.tick(60)
