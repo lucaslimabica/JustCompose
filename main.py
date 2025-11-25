@@ -1,4 +1,4 @@
-from cam import Camera
+from just_composing import Camera
 import pygame
 import sys
 
