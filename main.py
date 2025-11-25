@@ -1,4 +1,5 @@
 from just_composing import Camera
+from just_recording import Recorder 
 import pygame
 import sys
 
@@ -13,11 +14,28 @@ COLOR_BUTTON_DARK = (100, 100, 100)
 
 BUTTON_SIZE = (250, 60)
 
+BTN_COMPOSE_Y = 250
+BTN_RECORD_Y = 350 
+
+
+def draw_button(screen, rect, font, text_content, mouse_pos):
+    if rect.collidepoint(mouse_pos):
+        color = COLOR_BUTTON_LIGHT
+    else:
+        color = COLOR_BUTTON_DARK
+    
+    pygame.draw.rect(screen, color, rect)
+    
+    text_surface = font.render(text_content, True, COLOR_WHITE)
+    text_rect = text_surface.get_rect(center=rect.center)
+    screen.blit(text_surface, text_rect)
+    
+    return rect
 
 def main():
     """
     Main entry point for the JustCompose UI.
-    Opens a simple Pygame window with a single button.
+    Opens a simple Pygame window with two buttons.
     """
     pygame.init()
     pygame.display.set_caption("JustCompose | Main Menu")
@@ -25,44 +43,46 @@ def main():
     screen = pygame.display.set_mode(WINDOW_SIZE)
     clock = pygame.time.Clock()
     width, height = screen.get_size()
-    # Background
-    screen.fill(BG_COLOR)
     
-    # Button setup
-    button_rect = pygame.Rect(0, 0, *BUTTON_SIZE)
-    button_rect.center = (width // 2, height // 2)
     font = pygame.font.SysFont("Corbel", 32)
-    button_text = font.render("Start Composing", True, COLOR_WHITE)
-    # Center text inside the button
-    text_rect = button_text.get_rect(center=button_rect.center)
-    screen.blit(button_text, text_rect)
-    # Button hover effect
-    if button_rect.collidepoint(mouse_pos):
-        pygame.draw.rect(screen, COLOR_BUTTON_LIGHT, button_rect)
-    else:
-        pygame.draw.rect(screen, COLOR_BUTTON_DARK, button_rect)
-
-    # Prepare camera instance
-    cam = Camera(device=0)
+    
+    # Start Composing
+    btn_compose_rect = pygame.Rect(0, 0, *BUTTON_SIZE)
+    btn_compose_rect.center = (width // 2, BTN_COMPOSE_Y)
+    
+    # Start Recording
+    btn_record_rect = pygame.Rect(0, 0, *BUTTON_SIZE)
+    btn_record_rect.center = (width // 2, BTN_RECORD_Y)
 
     running = True
     while running:
         mouse_pos = pygame.mouse.get_pos()
 
         for event in pygame.event.get():
-            # Window close (X)
             if event.type == pygame.QUIT:
                 running = False
-
-            # ESC key quits
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 running = False
 
             # Mouse click
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                if button_rect.collidepoint(mouse_pos):
-                    # Start motion capture (blocks until camera window closes)
+                
+                if btn_compose_rect.collidepoint(mouse_pos):
+                    print("Starting Composing...")
+                    cam = Camera(device=0)
                     cam.capture()
+                    
+                if btn_record_rect.collidepoint(mouse_pos):
+                    print("Starting Recording...")
+                    recorder = Recorder()
+                    recorder.capture()
+                    
+                    
+        
+        screen.fill(BG_COLOR)
+        draw_button(screen, btn_compose_rect, font, "Start Composing", mouse_pos)
+        draw_button(screen, btn_record_rect, font, "Start Recording", mouse_pos)
+
 
         pygame.display.flip()
         clock.tick(60)
