@@ -17,23 +17,30 @@ BUTTON_SIZE = (250, 60)
 def main():
     """
     Main entry point for the JustCompose UI.
-
     Opens a simple Pygame window with a single button.
-    - Clicking the button starts the camera capture.
-    - Closing the window or pressing ESC quits the app.
     """
     pygame.init()
     pygame.display.set_caption("JustCompose | Main Menu")
 
     screen = pygame.display.set_mode(WINDOW_SIZE)
     clock = pygame.time.Clock()
-
-    # Button setup
     width, height = screen.get_size()
+    # Background
+    screen.fill(BG_COLOR)
+    
+    # Button setup
     button_rect = pygame.Rect(0, 0, *BUTTON_SIZE)
     button_rect.center = (width // 2, height // 2)
     font = pygame.font.SysFont("Corbel", 32)
     button_text = font.render("Start Composing", True, COLOR_WHITE)
+    # Center text inside the button
+    text_rect = button_text.get_rect(center=button_rect.center)
+    screen.blit(button_text, text_rect)
+    # Button hover effect
+    if button_rect.collidepoint(mouse_pos):
+        pygame.draw.rect(screen, COLOR_BUTTON_LIGHT, button_rect)
+    else:
+        pygame.draw.rect(screen, COLOR_BUTTON_DARK, button_rect)
 
     # Prepare camera instance
     cam = Camera(device=0)
@@ -56,19 +63,6 @@ def main():
                 if button_rect.collidepoint(mouse_pos):
                     # Start motion capture (blocks until camera window closes)
                     cam.capture()
-
-        # Background
-        screen.fill(BG_COLOR)
-
-        # Button hover effect
-        if button_rect.collidepoint(mouse_pos):
-            pygame.draw.rect(screen, COLOR_BUTTON_LIGHT, button_rect)
-        else:
-            pygame.draw.rect(screen, COLOR_BUTTON_DARK, button_rect)
-
-        # Center text inside the button
-        text_rect = button_text.get_rect(center=button_rect.center)
-        screen.blit(button_text, text_rect)
 
         pygame.display.flip()
         clock.tick(60)

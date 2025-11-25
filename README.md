@@ -1,6 +1,6 @@
 # 🎵 JustCompose Work in Progress
 
-**Total invested time:** `5h40m`
+**Total invested time:** `11h40m`
 
 ## 🚀 Overview
 
