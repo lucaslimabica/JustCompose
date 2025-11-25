@@ -193,8 +193,7 @@ class Camera:
                 elif mode == "landmarks":
                     coords = f"{i}"
                     
-                width  = int(self.cap.get(cv.CAP_PROP_FRAME_WIDTH))
-                height = int(self.cap.get(cv.CAP_PROP_FRAME_HEIGHT))
+                width, height = self.get_frame_dimensions(image)
                 px = int(landmark.x * width)
                 py = int(landmark.y * height)
                 cv.putText(img=image, text=coords, org=(px + 30, py), fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=0.5, thickness=1, color=(0, 0, 0), lineType = cv.LINE_AA)
@@ -218,8 +217,7 @@ class Camera:
                 - (x1, y1) → top-left corner
                 - (x2, y2) → bottom-right corner
         """
-        width  = int(self.cap.get(cv.CAP_PROP_FRAME_WIDTH))
-        height = int(self.cap.get(cv.CAP_PROP_FRAME_HEIGHT))
+        width, height = self.get_frame_dimensions(image)
         xs = [landmark.x for landmark in hand_landmarks]
         ys = [landmark.y for landmark in hand_landmarks]
         min_x = min(xs)
@@ -340,3 +338,22 @@ class Camera:
                 return gesture  # find the first matching gesture
 
         return None
+    
+    def get_frame_dimensions(self, image):
+        """
+        Returns (width, height) for both videocapture frames and static images.
+
+        - If using webcam, any other numerical device or video (self.cap exists), 
+          uses cap.get() because the frame might be resized by the camera backend.
+
+        - If using static image, falls back to image.shape.
+        """
+        if hasattr(self, "cap") and self.cap is not None:
+            w = int(self.cap.get(cv.CAP_PROP_FRAME_WIDTH))
+            h = int(self.cap.get(cv.CAP_PROP_FRAME_HEIGHT))
+            if w > 0 and h > 0:
+                return w, h
+
+        # Fallback for images (numpy array)
+        h, w = image.shape[:2]
+        return w, h
