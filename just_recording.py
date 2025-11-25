@@ -33,7 +33,9 @@ class Recorder():
         # Class attributes
         self.name = name
         self.device = device
-        self.capture_mode = capture_mode 
+        self.capture_mode = capture_mode
+        self.pose_cache = []
+        self.logical_pose_cache = []
     
     def capture(self):
         """
@@ -83,8 +85,8 @@ class Recorder():
                     if key == ord("s") and results.multi_hand_landmarks:
                         for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):    
                             gesture = self.snapshot_hand_pose(hand_landmarks=hand_landmarks.landmark, handedness_label=handedness.classification[0].label)
-                            print("Snapshot taken:")
-                            print(json.dumps(gesture, indent=2))
+                            #print("Snapshot taken:")
+                            #print(json.dumps(gesture, indent=2))
                     
                     if cv.getWindowProperty(self.name, cv.WND_PROP_VISIBLE) < 1:
                         break
@@ -222,7 +224,26 @@ class Recorder():
                 "y": lm.y,
             })
 
+        self.pose_cache.append(pose)
+        self.pose_logical_representation(pose)
         return pose
+    
+    def pose_logical_representation(self, pose):
+        print("Computing logical representation for the captured pose...")
+        index_finger = (pose["landmarks"][6:9])
+        print(index_finger)
+        index_finger_y = (pose["landmarks"][8]["y"], pose["landmarks"][6]["y"])
+        pink_finger_y = (pose["landmarks"][20]["y"], pose["landmarks"][18]["y"])
+        midfinger_y = (pose["landmarks"][12]["y"], pose["landmarks"][10]["y"])
+        thumb_x = (pose["landmarks"][4]["x"], pose["landmarks"][2]["x"])
+        logical_pose = {
+            "hand_side": pose["hand_side"],
+            "index_finger": "up" if index_finger_y[0] < index_finger_y[1] else "down",
+            "middle_finger": "up" if midfinger_y[0] < midfinger_y[1] else "down",
+            "pink_finger": "up" if pink_finger_y[0] < pink_finger_y[1] else "down",
+            "thumb": "open" if thumb_x[0] > thumb_x[1] else "closed"
+        }
+        print("Logical representation:", logical_pose)
     
 if __name__ == "__main__":
     recorder = Recorder(name="Just Compose Beta", device=0, capture_mode="landmarks_coords")
