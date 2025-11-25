@@ -231,17 +231,33 @@ class Recorder():
     def pose_logical_representation(self, pose):
         print("Computing logical representation for the captured pose...")
         index_finger = (pose["landmarks"][6:9])
-        print(index_finger)
-        index_finger_y = (pose["landmarks"][8]["y"], pose["landmarks"][6]["y"])
-        pink_finger_y = (pose["landmarks"][20]["y"], pose["landmarks"][18]["y"])
-        midfinger_y = (pose["landmarks"][12]["y"], pose["landmarks"][10]["y"])
-        thumb_x = (pose["landmarks"][4]["x"], pose["landmarks"][2]["x"])
+        index_finger_logical = [
+            (6, ">", 8, "y", pose["hand_side"]) if index_finger[0]["y"] > index_finger[2]["y"] else (6,"<",8, "y", pose["hand_side"])
+        ]
+        pink_finger = (pose["landmarks"][18:21])
+        pink_finger_logical = [
+            (18, ">", 20, "y", pose["hand_side"]) if pink_finger[0]["y"] > pink_finger[2]["y"] else (18,"<",20, "y", pose["hand_side"])
+        ]
+        mid_finger = (pose["landmarks"][10:13])
+        mid_finger_logical = [
+            (10, ">", 12, "y", pose["hand_side"]) if mid_finger[0]["y"] > mid_finger[2]["y"] else (10,"<",12, "y", pose["hand_side"])
+        ]
+        ring_finger = (pose["landmarks"][14:17])
+        ring_finger_logical = [
+            (14, ">", 16, "y", pose["hand_side"]) if ring_finger[0]["y"] > ring_finger[2]["y"] else (14,"<",16, "y", pose["hand_side"])
+        ]
+        thumb_finger = (pose["landmarks"][2:5])
+        thumb_finger_logical = [
+            (2, ">", 4, "x", pose["hand_side"]) if thumb_finger[0]["x"] > thumb_finger[2]["x"] else (2,"<",4, "x", pose["hand_side"])
+        ]
         logical_pose = {
             "hand_side": pose["hand_side"],
-            "index_finger": "up" if index_finger_y[0] < index_finger_y[1] else "down",
-            "middle_finger": "up" if midfinger_y[0] < midfinger_y[1] else "down",
-            "pink_finger": "up" if pink_finger_y[0] < pink_finger_y[1] else "down",
-            "thumb": "open" if thumb_x[0] > thumb_x[1] else "closed"
+            "index_finger": "up" if index_finger[0]["y"] > index_finger[2]["y"] else "down",
+            "middle_finger": "up" if mid_finger[0]["y"] > mid_finger[2]["y"] else "down",
+            "ring_finger": "up" if ring_finger[0]["y"] > ring_finger[2]["y"] else "down",
+            "pink_finger": "up" if pink_finger[0]["y"] > pink_finger[1]["y"] else "down",
+            "thumb": "open" if thumb_finger[0]["x"] > thumb_finger[1]["x"] else "closed",
+            "conds": [index_finger_logical, mid_finger_logical, ring_finger_logical, pink_finger_logical]
         }
         print("Logical representation:", logical_pose)
     
