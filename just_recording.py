@@ -229,50 +229,150 @@ class Recorder():
         return pose
     
     def pose_logical_representation(self, pose):
+        """
+        Convert a captured pose (raw landmarks) into a logical representation.
+
+        It computes:
+          - which fingers are up/down (Y axis)
+          - thumb open/closed (X axis)
+          - a set of logical conditions (tuples) that can be stored as gesture rules
+
+        Args:
+            pose (dict):
+                {
+                  "hand_side": "left" | "right",
+                  "landmarks": [
+                      {"id": 0, "x": ..., "y": ..., "z": ...},
+                      ...
+                      {"id": 20, "x": ..., "y": ..., "z": ...},
+                  ]
+                }
+        Returns:
+            dict:
+                Logical representation of the pose:
+                {
+                  "hand_side": "right",
+                  "index_finger": "up",
+                  "middle_finger": "up",
+                  "ring_finger": "down",
+                  "pink_finger": "down",
+                  "thumb": "open",
+                  "conds": [
+                    (6, ">", 8, "y", "right"),
+                    (10, ">", 12, "y", "right"),
+                    (14, "<", 16, "y", "right"),
+                    (18, ">", 20, "y", "right"),
+                    (2, "<", 4, "x", "right"),
+                    (8, ">", 2, "x", "right"),
+                    (8, "<", 10, "x", "right"),
+                    (12, "<", 6, "x", "right"),
+                    (12, "<", 14, "x", "right"),
+                    (16, ">", 10, "x", "right"),
+                    (16, ">", 18, "x", "right"),
+                    (20, ">", 14, "x", "right")
+                  ]
+                }
+        """
         print("Computing logical representation for the captured pose...")
-        index_finger = (pose["landmarks"][6:9])
-        index_finger_logical = [
-            (6, ">", 8, "y", pose["hand_side"]) if index_finger[0]["y"] > index_finger[2]["y"] else (6,"<",8, "y", pose["hand_side"])
-        ]
-        # at right hand, x increases to the pinky
-        # at left hand, x increases to the thumb
-        # to know if a finger is open or closed, we compare the x of the tip with
-        # the x of the left and rigth neighbour finger pip
-        # to recognize the gesture "V", first we need to know if the index and middle fingers are up
-        # then we compare the x axis of the index finger tip (8) with the x axis of the middle finger pip (10)
-        # if it is a right hand, the index finger tip x must be less than the middle finger pip x
-        # and we compare the x axis of the index finger tip (8) with the x axis of the thumb finger pip (2)
-        # if is a right hand, the index finger tip x must be greater than the thumb finger pip x
-        # and we compare the x axis of the middle finger tip (12) with the x axis of the ring finger pip (14)
-        # if is a right hand, the middle finger tip x must be greater than the ring finger pip x
-        
-        pink_finger = (pose["landmarks"][18:21])
-        pink_finger_logical = [
-            (18, ">", 20, "y", pose["hand_side"]) if pink_finger[0]["y"] > pink_finger[2]["y"] else (18,"<",20, "y", pose["hand_side"])
-        ]
-        mid_finger = (pose["landmarks"][10:13])
-        mid_finger_logical = [
-            (10, ">", 12, "y", pose["hand_side"]) if mid_finger[0]["y"] > mid_finger[2]["y"] else (10,"<",12, "y", pose["hand_side"])
-        ]
-        ring_finger = (pose["landmarks"][14:17])
-        ring_finger_logical = [
-            (14, ">", 16, "y", pose["hand_side"]) if ring_finger[0]["y"] > ring_finger[2]["y"] else (14,"<",16, "y", pose["hand_side"])
-        ]
-        thumb_finger = (pose["landmarks"][2:5])
-        thumb_finger_logical = [
-            (2, ">", 4, "x", pose["hand_side"]) if thumb_finger[0]["x"] > thumb_finger[2]["x"] else (2,"<",4, "x", pose["hand_side"])
-        ]
+
+        lms = pose["landmarks"]
+        side = pose["hand_side"]   # "left" or "right"
+
+        # --- Helpers ----------------------------------------------------
+        def y_relation(pip_id: int, tip_id: int):
+            """Return a condition (pip_id, op, tip_id, 'y', side) based on current pose."""
+            pip_y = lms[pip_id]["y"]
+            tip_y = lms[tip_id]["y"]
+            # In MediaPipe, smaller y = higher on screen
+            op = ">" if pip_y > tip_y else "<"
+            return (pip_id, op, tip_id, "y", side)
+
+        def x_relation(tip_id: int, neighbor_pip_id: int):
+            """Return a condition (tip_id, op, neighbor_pip_id, 'x', side) based on current pose."""
+            tip_x = lms[tip_id]["x"]
+            neighbor_x = lms[neighbor_pip_id]["x"]
+            op = ">" if tip_x > neighbor_x else "<"
+            return (tip_id, op, neighbor_pip_id, "x", side)
+
+        # --- Y-axis logic: finger up / down -----------------------------
+        # Index finger: landmarks 6 (PIP), 8 (TIP)
+        index_pip_id, index_tip_id = 6, 8
+        index_finger = lms[index_pip_id:index_tip_id + 1]
+        index_is_up = index_finger[0]["y"] > index_finger[2]["y"]  # pip.y > tip.y → tip higher
+        index_y_cond = y_relation(index_pip_id, index_tip_id)
+
+        # Middle finger: 10 (PIP), 12 (TIP)
+        mid_pip_id, mid_tip_id = 10, 12
+        mid_finger = lms[mid_pip_id:mid_tip_id + 1]
+        mid_is_up = mid_finger[0]["y"] > mid_finger[2]["y"]
+        mid_y_cond = y_relation(mid_pip_id, mid_tip_id)
+
+        # Ring finger: 14 (PIP), 16 (TIP)
+        ring_pip_id, ring_tip_id = 14, 16
+        ring_finger = lms[ring_pip_id:ring_tip_id + 1]
+        ring_is_up = ring_finger[0]["y"] > ring_finger[2]["y"]
+        ring_y_cond = y_relation(ring_pip_id, ring_tip_id)
+
+        # Pinky finger: 18 (PIP), 20 (TIP)
+        pink_pip_id, pink_tip_id = 18, 20
+        pink_finger = lms[pink_pip_id:pink_tip_id + 1]
+        pink_is_up = pink_finger[0]["y"] > pink_finger[2]["y"]
+        pink_y_cond = y_relation(pink_pip_id, pink_tip_id)
+
+        # Thumb: 2 (MCP/PIP-ish), 4 (TIP)  → open/closed mostly on X axis
+        thumb_base_id, thumb_tip_id = 2, 4
+        thumb_base = lms[thumb_base_id]
+        thumb_tip = lms[thumb_tip_id]
+        thumb_is_open = thumb_tip["x"] > thumb_base["x"] if side == "right" else thumb_tip["x"] < thumb_base["x"]
+        thumb_x_cond = x_relation(thumb_base_id, thumb_tip_id)  # base vs tip on X
+
+        # --- X-axis logic: separation between fingers ------------------
+        x_conds = []
+
+        # For the "V" / spread logic, we compare tips vs neighbor PIPs
+        # Example (right hand):
+        #   - index tip (8) between thumb (2) and middle PIP (10)
+        #   - middle tip (12) between index PIP (6) and ring PIP (14)
+        #   - ring tip (16) between middle PIP (10) and pinky PIP (18)
+        #   - pinky tip (20) compared with ring PIP (14)
+
+        # Index tip vs thumb base and middle PIP
+        x_conds.append(x_relation(index_tip_id, thumb_base_id))  # (8, op, 2, "x", side)
+        x_conds.append(x_relation(index_tip_id, mid_pip_id))     # (8, op, 10, "x", side)
+
+        # Middle tip vs index PIP and ring PIP
+        x_conds.append(x_relation(mid_tip_id, index_pip_id))     # (12, op, 6, "x", side)
+        x_conds.append(x_relation(mid_tip_id, ring_pip_id))      # (12, op, 14, "x", side)
+
+        # Ring tip vs middle PIP and pinky PIP
+        x_conds.append(x_relation(ring_tip_id, mid_pip_id))      # (16, op, 10, "x", side)
+        x_conds.append(x_relation(ring_tip_id, pink_pip_id))     # (16, op, 18, "x", side)
+
+        # Pinky tip vs ring PIP
+        x_conds.append(x_relation(pink_tip_id, ring_pip_id))     # (20, op, 14, "x", side)
+
+        # --- Aggregate logical representation --------------------------
         logical_pose = {
-            "hand_side": pose["hand_side"],
-            "index_finger": "up" if index_finger[0]["y"] > index_finger[2]["y"] else "down",
-            "middle_finger": "up" if mid_finger[0]["y"] > mid_finger[2]["y"] else "down",
-            "ring_finger": "up" if ring_finger[0]["y"] > ring_finger[2]["y"] else "down",
-            "pink_finger": "up" if pink_finger[0]["y"] > pink_finger[1]["y"] else "down",
-            "thumb": "open" if thumb_finger[0]["x"] > thumb_finger[1]["x"] else "closed",
-            "conds": [index_finger_logical, mid_finger_logical, ring_finger_logical, pink_finger_logical]
+            "hand_side": side,
+            "index_finger": "up" if index_is_up else "down",
+            "middle_finger": "up" if mid_is_up else "down",
+            "ring_finger": "up" if ring_is_up else "down",
+            "pink_finger": "up" if pink_is_up else "down",
+            "thumb": "open" if thumb_is_open else "closed",
+            "conds": [
+                index_y_cond,
+                mid_y_cond,
+                ring_y_cond,
+                pink_y_cond,
+                thumb_x_cond,
+                *x_conds,  # all X-axis relations between neighbors
+            ],
         }
+
         print("Logical representation:", logical_pose)
-    
+        return logical_pose
+
+
 if __name__ == "__main__":
     recorder = Recorder(name="Just Compose Beta", device=0, capture_mode="landmarks_coords")
     recorder.capture()
