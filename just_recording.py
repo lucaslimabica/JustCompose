@@ -234,6 +234,18 @@ class Recorder():
         index_finger_logical = [
             (6, ">", 8, "y", pose["hand_side"]) if index_finger[0]["y"] > index_finger[2]["y"] else (6,"<",8, "y", pose["hand_side"])
         ]
+        # at right hand, x increases to the pinky
+        # at left hand, x increases to the thumb
+        # to know if a finger is open or closed, we compare the x of the tip with
+        # the x of the left and rigth neighbour finger pip
+        # to recognize the gesture "V", first we need to know if the index and middle fingers are up
+        # then we compare the x axis of the index finger tip (8) with the x axis of the middle finger pip (10)
+        # if it is a right hand, the index finger tip x must be less than the middle finger pip x
+        # and we compare the x axis of the index finger tip (8) with the x axis of the thumb finger pip (2)
+        # if is a right hand, the index finger tip x must be greater than the thumb finger pip x
+        # and we compare the x axis of the middle finger tip (12) with the x axis of the ring finger pip (14)
+        # if is a right hand, the middle finger tip x must be greater than the ring finger pip x
+        
         pink_finger = (pose["landmarks"][18:21])
         pink_finger_logical = [
             (18, ">", 20, "y", pose["hand_side"]) if pink_finger[0]["y"] > pink_finger[2]["y"] else (18,"<",20, "y", pose["hand_side"])
