@@ -390,6 +390,7 @@ class Recorder():
         font = pygame.font.SysFont("Consolas", 28)
         clock = pygame.time.Clock()
         input_text = ""
+
         screen.fill((25, 25, 25))
         prompt_surf = font.render("Gesture name:", True, (255, 255, 255))
         screen.blit(prompt_surf, (20, 40))
