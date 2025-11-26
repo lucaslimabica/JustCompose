@@ -370,9 +370,38 @@ class Recorder():
         }
 
         print("Logical representation:", logical_pose)
+        self.prompt_gesture_name()
         return logical_pose
 
+    def prompt_gesture_name(self):
+        """
+        Prompt the user to input a name for the captured gesture.
+        Returns:
+            str | None
+                - The name entered by the user or
+                - None if the user did not enter a valid name
+        """
+        if not pygame.get_init():
+            pygame.init()
+            
+        width, height = 500, 180
+        screen = pygame.display.set_mode((width, height))
+        pygame.display.set_caption("Name your gesture")
+        font = pygame.font.SysFont("Consolas", 28)
+        clock = pygame.time.Clock()
+        input_text = ""
+        screen.fill((25, 25, 25))
+        prompt_surf = font.render("Gesture name:", True, (255, 255, 255))
+        screen.blit(prompt_surf, (20, 40))
+        display_text = input_text if input_text else "_"
+        text_surf = font.render(display_text, True, (0, 255, 0))
+        screen.blit(text_surf, (20, 90))
+        pygame.display.flip()
+        clock.tick(30)
 
+
+
+    
 if __name__ == "__main__":
     recorder = Recorder(name="Just Compose Beta", device=0, capture_mode="landmarks_coords")
     recorder.capture()
