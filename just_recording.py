@@ -85,8 +85,8 @@ class Recorder():
                     if key == ord("s") and results.multi_hand_landmarks:
                         for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):    
                             gesture = self.snapshot_hand_pose(hand_landmarks=hand_landmarks.landmark, handedness_label=handedness.classification[0].label)
-                            #print("Snapshot taken:")
-                            #print(json.dumps(gesture, indent=2))
+                            print("Snapshot taken:")
+                            print(json.dumps(gesture, indent=2))
                     
                     if cv.getWindowProperty(self.name, cv.WND_PROP_VISIBLE) < 1:
                         break
@@ -225,7 +225,7 @@ class Recorder():
             })
 
         self.pose_cache.append(pose)
-        self.pose_logical_representation(pose)
+        pose = self.pose_logical_representation(pose)
         return pose
     
     def pose_logical_representation(self, pose):
@@ -242,15 +242,15 @@ class Recorder():
                 {
                   "hand_side": "left" | "right",
                   "landmarks": [
-                      {"id": 0, "x": ..., "y": ..., "z": ...},
-                      ...
-                      {"id": 20, "x": ..., "y": ..., "z": ...},
+                    {"id": 0, "x": ..., "y": ..., "z": ...},
+                    {"id": 20, "x": ..., "y": ..., "z": ...},
                   ]
                 }
         Returns:
             dict:
                 Logical representation of the pose:
                 {
+                  "name": "Number Three",
                   "hand_side": "right",
                   "index_finger": "up",
                   "middle_finger": "up",
@@ -369,9 +369,9 @@ class Recorder():
             ],
         }
 
-        print("Logical representation:", logical_pose)
         name = self.prompt_gesture_name()
-        print(name)
+        if name:
+            logical_pose["name"] = name
         return logical_pose
 
     def prompt_gesture_name(self,
