@@ -68,16 +68,17 @@ def main():
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 
                 if btn_compose_rect.collidepoint(mouse_pos):
-                    print("Starting Composing...")
                     cam = Camera(device=0)
-                    running = False
+                    pygame.display.quit()
                     cam.capture()
+                    main()
                     
                 if btn_record_rect.collidepoint(mouse_pos):
-                    print("Starting Recording...")
                     recorder = Recorder()
-                    running = False
+                    pygame.display.quit()
                     recorder.capture()
+                    main()
+                    
                     
         
         screen.fill(BG_COLOR)

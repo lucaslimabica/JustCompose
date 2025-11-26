@@ -2,6 +2,7 @@ import cv2 as cv
 import mediapipe as mp
 import pygame
 import json
+import database_manager
 
 
 class Recorder():
@@ -33,7 +34,9 @@ class Recorder():
         # Class attributes
         self.name = name
         self.device = device
-        self.capture_mode = capture_mode 
+        self.capture_mode = capture_mode
+        self.pose_cache = []
+        self.logical_pose_cache = []
     
     def capture(self):
         """
@@ -222,7 +225,234 @@ class Recorder():
                 "y": lm.y,
             })
 
+        self.pose_cache.append(pose)
+        pose = self.pose_logical_representation(pose)
+        gesture_id = database_manager.create_gesture(pose["name"],
+            f"""
+            At the {pose["hand_side"]} hand with the
+            index finger {pose["index_finger"]},
+            mid finger {pose["middle_finger"]},
+            ring finger {pose["ring_finger"]},
+            pinky finger {pose["pink_finger"]},
+            thumb {pose["thumb"]}.
+            """,
+            "sound"
+        )
+        for cond in pose["conds"]:
+            database_manager.create_gesture_condition(gesture_id, cond[0], cond[1], cond[2], cond[3], cond[4])
         return pose
+    
+    def pose_logical_representation(self, pose):
+        """
+        Convert a captured pose (raw landmarks) into a logical representation.
+
+        It computes:
+          - which fingers are up/down (Y axis)
+          - thumb open/closed (X axis)
+          - a set of logical conditions (tuples) that can be stored as gesture rules
+
+        Args:
+            pose (dict):
+                {
+                  "hand_side": "left" | "right",
+                  "landmarks": [
+                    {"id": 0, "x": ..., "y": ..., "z": ...},
+                    {"id": 20, "x": ..., "y": ..., "z": ...},
+                  ]
+                }
+        Returns:
+            dict:
+                Logical representation of the pose:
+                {
+                  "name": "Number Three",
+                  "hand_side": "right",
+                  "index_finger": "up",
+                  "middle_finger": "up",
+                  "ring_finger": "down",
+                  "pink_finger": "down",
+                  "thumb": "open",
+                  "conds": [
+                    (6, ">", 8, "y", "right"),
+                    (10, ">", 12, "y", "right"),
+                    (14, "<", 16, "y", "right"),
+                    (18, ">", 20, "y", "right"),
+                    (2, "<", 4, "x", "right"),
+                    (8, ">", 2, "x", "right"),
+                    (8, "<", 10, "x", "right"),
+                    (12, "<", 6, "x", "right"),
+                    (12, "<", 14, "x", "right"),
+                    (16, ">", 10, "x", "right"),
+                    (16, ">", 18, "x", "right"),
+                    (20, ">", 14, "x", "right")
+                  ]
+                }
+        """
+        print("Computing logical representation for the captured pose...")
+
+        lms = pose["landmarks"]
+        side = pose["hand_side"]   # "left" or "right"
+
+        # --- Helpers ----------------------------------------------------
+        def y_relation(pip_id: int, tip_id: int):
+            """Return a condition (pip_id, op, tip_id, 'y', side) based on current pose."""
+            pip_y = lms[pip_id]["y"]
+            tip_y = lms[tip_id]["y"]
+            # In MediaPipe, smaller y = higher on screen
+            op = ">" if pip_y > tip_y else "<"
+            return (pip_id, op, tip_id, "y", side)
+
+        def x_relation(tip_id: int, neighbor_pip_id: int):
+            """Return a condition (tip_id, op, neighbor_pip_id, 'x', side) based on current pose."""
+            tip_x = lms[tip_id]["x"]
+            neighbor_x = lms[neighbor_pip_id]["x"]
+            op = ">" if tip_x > neighbor_x else "<"
+            return (tip_id, op, neighbor_pip_id, "x", side)
+
+        # --- Y-axis logic: finger up / down -----------------------------
+        # Index finger: landmarks 6 (PIP), 8 (TIP)
+        index_pip_id, index_tip_id = 6, 8
+        index_finger = lms[index_pip_id:index_tip_id + 1]
+        index_is_up = index_finger[0]["y"] > index_finger[2]["y"]  # pip.y > tip.y → tip higher
+        index_y_cond = y_relation(index_pip_id, index_tip_id)
+
+        # Middle finger: 10 (PIP), 12 (TIP)
+        mid_pip_id, mid_tip_id = 10, 12
+        mid_finger = lms[mid_pip_id:mid_tip_id + 1]
+        mid_is_up = mid_finger[0]["y"] > mid_finger[2]["y"]
+        mid_y_cond = y_relation(mid_pip_id, mid_tip_id)
+
+        # Ring finger: 14 (PIP), 16 (TIP)
+        ring_pip_id, ring_tip_id = 14, 16
+        ring_finger = lms[ring_pip_id:ring_tip_id + 1]
+        ring_is_up = ring_finger[0]["y"] > ring_finger[2]["y"]
+        ring_y_cond = y_relation(ring_pip_id, ring_tip_id)
+
+        # Pinky finger: 18 (PIP), 20 (TIP)
+        pink_pip_id, pink_tip_id = 18, 20
+        pink_finger = lms[pink_pip_id:pink_tip_id + 1]
+        pink_is_up = pink_finger[0]["y"] > pink_finger[2]["y"]
+        pink_y_cond = y_relation(pink_pip_id, pink_tip_id)
+
+        # Thumb: 2 (MCP/PIP-ish), 4 (TIP)  → open/closed mostly on X axis
+        thumb_base_id, thumb_tip_id = 2, 4
+        thumb_base = lms[thumb_base_id]
+        thumb_tip = lms[thumb_tip_id]
+        thumb_is_open = thumb_tip["x"] > thumb_base["x"] if side == "right" else thumb_tip["x"] < thumb_base["x"]
+        thumb_x_cond = x_relation(thumb_base_id, thumb_tip_id)  # base vs tip on X
+
+        # --- X-axis logic: separation between fingers ------------------
+        x_conds = []
+
+        # For the "V" / spread logic, we compare tips vs neighbor PIPs
+        # Example (right hand):
+        #   - index tip (8) between thumb (2) and middle PIP (10)
+        #   - middle tip (12) between index PIP (6) and ring PIP (14)
+        #   - ring tip (16) between middle PIP (10) and pinky PIP (18)
+        #   - pinky tip (20) compared with ring PIP (14)
+
+        # Index tip vs thumb base and middle PIP
+        x_conds.append(x_relation(index_tip_id, thumb_base_id))  # (8, op, 2, "x", side)
+        x_conds.append(x_relation(index_tip_id, mid_pip_id))     # (8, op, 10, "x", side)
+
+        # Middle tip vs index PIP and ring PIP
+        x_conds.append(x_relation(mid_tip_id, index_pip_id))     # (12, op, 6, "x", side)
+        x_conds.append(x_relation(mid_tip_id, ring_pip_id))      # (12, op, 14, "x", side)
+
+        # Ring tip vs middle PIP and pinky PIP
+        x_conds.append(x_relation(ring_tip_id, mid_pip_id))      # (16, op, 10, "x", side)
+        x_conds.append(x_relation(ring_tip_id, pink_pip_id))     # (16, op, 18, "x", side)
+
+        # Pinky tip vs ring PIP
+        x_conds.append(x_relation(pink_tip_id, ring_pip_id))     # (20, op, 14, "x", side)
+
+        # --- Aggregate logical representation --------------------------
+        logical_pose = {
+            "hand_side": side,
+            "index_finger": "up" if index_is_up else "down",
+            "middle_finger": "up" if mid_is_up else "down",
+            "ring_finger": "up" if ring_is_up else "down",
+            "pink_finger": "up" if pink_is_up else "down",
+            "thumb": "open" if thumb_is_open else "closed",
+            "conds": [
+                index_y_cond,
+                mid_y_cond,
+                ring_y_cond,
+                pink_y_cond,
+                thumb_x_cond,
+                *x_conds,  # all X-axis relations between neighbors
+            ],
+        }
+
+        name = self.prompt_gesture_name()
+        if name:
+            logical_pose["name"] = name
+        return logical_pose
+
+    def prompt_gesture_name(self,
+        prompt_message: str = "Enter name:",
+        window_size=(400, 180),
+        font_size=32
+    ) -> str | None:
+        """
+        Opens a small Pygame input window and returns the user-typed string.
+
+        Args:
+            prompt_message (str): Text shown above the input box.
+            window_size (tuple): Size of the input window (width, height).
+            font_size (int): Font size for the input text.
+
+        Returns:
+            str | None: 
+                The text the user typed (stripped), or None if cancelled.
+        """
+        if not pygame.get_init():
+            pygame.init()
+
+        # Create the text window
+        screen = pygame.display.set_mode(window_size)
+        pygame.display.set_caption("JustCompose - Input")
+        font = pygame.font.Font(None, font_size)
+        clock = pygame.time.Clock()
+        input_box = pygame.Rect(20, 80, 200, 40)
+        color_inactive = pygame.Color("lightskyblue3")
+        color = color_inactive
+        text = ""
+
+        running = True
+        while running:
+            for event in pygame.event.get():
+                # X
+                if event.type == pygame.QUIT:
+                    pygame.display.quit()
+                    return None
+
+                if event.type == pygame.KEYDOWN:
+                    # ESC
+                    if event.key == pygame.K_ESCAPE:
+                        pygame.display.quit()
+                        return None
+                    if event.key == pygame.K_RETURN:
+                        typed = text.strip()
+                        pygame.display.quit()
+                        return typed if typed else None
+                    if event.key == pygame.K_BACKSPACE:
+                        text = text[:-1]
+                    else:
+                        if event.unicode.isprintable():
+                            text += event.unicode
+
+            screen.fill((30, 30, 30)) # Drawing
+            prompt_surf = font.render(prompt_message, True, (255, 255, 255)) # Render prompt
+            screen.blit(prompt_surf, (20, 30))
+            txt_surface = font.render(text, True, color)
+            input_box.w = max(200, txt_surface.get_width() + 10) # Resize the box if text gets too long
+            screen.blit(txt_surface, (input_box.x + 5, input_box.y + 5)) # Draw text and input box
+            pygame.draw.rect(screen, color, input_box, 2)
+            pygame.display.flip()
+            clock.tick(30)
+
+        return None
+
     
 if __name__ == "__main__":
     recorder = Recorder(name="Just Compose Beta", device=0, capture_mode="landmarks_coords")
