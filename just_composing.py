@@ -5,6 +5,8 @@ import pygame
 import database_manager
 
 
+# TODO: TÁ MUITO SENSÍVEL A CAPTURA, talvez diminuir as conds do move
+
 class Camera:
     """
     Main camera handler for motion capture and gesture recognition.
@@ -277,12 +279,12 @@ class Camera:
 
         Returns:
             bool:
-                True if the condition is satisfied (or does not apply to this hand side),
+                True if the condition is satisfied,
                 False otherwise.
-        """
-        if cond["side"] != "any" and cond["side"] != handedness_label.lower():
-            return True  # Condition does not apply to this hand
-
+        """ # print(f"{hand_landmarks}")
+        if cond["side"] != handedness_label.lower():
+            return False
+        
         la = hand_landmarks[cond["a"]]
         lb = hand_landmarks[cond["b"]]
 
@@ -291,8 +293,10 @@ class Camera:
 
         op = cond["op"]
 
-        if op == "<":  return va < vb
-        if op == ">":  return va > vb
+        if op == "<": 
+            return va < vb
+        if op == ">":
+            return va > vb
 
         return False
 
@@ -335,7 +339,7 @@ class Camera:
                     break
 
             if match:
-                return gesture  # find the first matching gesture
+                return gesture  # found the first matching gesture
 
         return None
     
