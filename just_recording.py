@@ -370,37 +370,74 @@ class Recorder():
         }
 
         print("Logical representation:", logical_pose)
-        self.prompt_gesture_name()
+        name = self.prompt_gesture_name()
+        print(name)
         return logical_pose
 
-    def prompt_gesture_name(self):
+    def prompt_gesture_name(self,
+        prompt_message: str = "Enter name:",
+        window_size=(400, 180),
+        font_size=32
+    ) -> str | None:
         """
-        Prompt the user to input a name for the captured gesture.
+        Opens a small Pygame input window and returns the user-typed string.
+
+        Args:
+            prompt_message (str): Text shown above the input box.
+            window_size (tuple): Size of the input window (width, height).
+            font_size (int): Font size for the input text.
+
         Returns:
-            str | None
-                - The name entered by the user or
-                - None if the user did not enter a valid name
+            str | None: 
+                The text the user typed (stripped), or None if cancelled.
         """
         if not pygame.get_init():
             pygame.init()
-            
-        width, height = 500, 180
-        screen = pygame.display.set_mode((width, height))
-        pygame.display.set_caption("Name your gesture")
-        font = pygame.font.SysFont("Consolas", 28)
+
+        # Create the text window
+        screen = pygame.display.set_mode(window_size)
+        pygame.display.set_caption("JustCompose - Input")
+        font = pygame.font.Font(None, font_size)
         clock = pygame.time.Clock()
-        input_text = ""
+        input_box = pygame.Rect(20, 80, 200, 40)
+        color_inactive = pygame.Color("lightskyblue3")
+        color = color_inactive
+        text = ""
 
-        screen.fill((25, 25, 25))
-        prompt_surf = font.render("Gesture name:", True, (255, 255, 255))
-        screen.blit(prompt_surf, (20, 40))
-        display_text = input_text if input_text else "_"
-        text_surf = font.render(display_text, True, (0, 255, 0))
-        screen.blit(text_surf, (20, 90))
-        pygame.display.flip()
-        clock.tick(30)
+        running = True
+        while running:
+            for event in pygame.event.get():
+                # X
+                if event.type == pygame.QUIT:
+                    pygame.display.quit()
+                    return None
 
+                if event.type == pygame.KEYDOWN:
+                    # ESC
+                    if event.key == pygame.K_ESCAPE:
+                        pygame.display.quit()
+                        return None
+                    if event.key == pygame.K_RETURN:
+                        typed = text.strip()
+                        pygame.display.quit()
+                        return typed if typed else None
+                    if event.key == pygame.K_BACKSPACE:
+                        text = text[:-1]
+                    else:
+                        if event.unicode.isprintable():
+                            text += event.unicode
 
+            screen.fill((30, 30, 30)) # Drawing
+            prompt_surf = font.render(prompt_message, True, (255, 255, 255)) # Render prompt
+            screen.blit(prompt_surf, (20, 30))
+            txt_surface = font.render(text, True, color)
+            input_box.w = max(200, txt_surface.get_width() + 10) # Resize the box if text gets too long
+            screen.blit(txt_surface, (input_box.x + 5, input_box.y + 5)) # Draw text and input box
+            pygame.draw.rect(screen, color, input_box, 2)
+            pygame.display.flip()
+            clock.tick(30)
+
+        return None
 
     
 if __name__ == "__main__":
