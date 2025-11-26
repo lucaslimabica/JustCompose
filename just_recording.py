@@ -2,6 +2,7 @@ import cv2 as cv
 import mediapipe as mp
 import pygame
 import json
+import database_manager
 
 
 class Recorder():
@@ -226,6 +227,19 @@ class Recorder():
 
         self.pose_cache.append(pose)
         pose = self.pose_logical_representation(pose)
+        gesture_id = database_manager.create_gesture(pose["name"],
+            f"""
+            At the {pose["hand_side"]} hand with the
+            index finger {pose["index_finger"]},
+            mid finger {pose["middle_finger"]},
+            ring finger {pose["ring_finger"]},
+            pinky finger {pose["pink_finger"]},
+            thumb {pose["thumb"]}.
+            """,
+            "sound"
+        )
+        for cond in pose["conds"]:
+            database_manager.create_gesture_condition(gesture_id, cond[0], cond[1], cond[2], cond[3], cond[4])
         return pose
     
     def pose_logical_representation(self, pose):
