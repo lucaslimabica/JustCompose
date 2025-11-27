@@ -1,19 +1,79 @@
 # 🎵 JustCompose Work in Progress
+![Status](https://img.shields.io/badge/status-WIP-yellow)
+![Python](https://img.shields.io/badge/Python-3.10+-blue)
+![OpenCV](https://img.shields.io/badge/OpenCV-Video%20Processing-red)
+![MediaPipe](https://img.shields.io/badge/MediaPipe-Hands-orange)
 
-**Total invested time:** `19h40m`
+**Total invested time:** `26h40m`
 
-## 🚀 Overview
+## Overview
 
-**JustCompose** uses **OpenCV** to capture video/images and **MediaPipe Hands** to recognize hands in real time.
-From these detections, the system interprets gestures, distances, angles, and movements to create musical interactions.
+**JustCompose** is a gesture-controlled musical engine powered by **OpenCV** and **MediaPipe Hands**.
+It interprets hand landmarks, gestures, angles, distances, and spatial relationships to trigger real-time musical interactions, turning you into a MUSICIAN MAGICIAN.
+
+## 📚 **Table of Contents**
+- [📦 System Overview](#-system-overview)
+- [📸 How The Capture Works](#-how-the-capture-works)
+- [✋ How MediaPipe Returns a Detected Hand](#-how-mediapipe-returns-a-detected-hand)
+  - [`multi_hand_landmarks`](#multi_hand_landmarks)
+  - [`multi_handedness`](#-multi_handedness)
+  - [`multi_hand_world_landmarks`](#-multi_hand_world_landmarks-real-world-3d-coordinates)
+- [🎯 Visual Processing Milestones](-#milestones)
+  - [Draw Landmarks](#-draw-landmarks)
+  - [Draw Bounding Boxes](#-draw-bounding-boxes)
+- [🗄️ The Database Structure](#-the-database-structure)
+  - [`gesture` Table](#-table-gesture)
+  - [`gesture_condition` Table](#-table-gesture_condition)
+  - [How Conditions Work](#-how-conditions-work)
+  - [Final Combined Data Structure](#-final-combined-data-structure)
 
 
-## 📸 How OpenCV Works
+## 📦 System Overview
 
-OpenCV captures the video stream **frame by frame**.
-Each frame is sent to MediaPipe’s hand detection model for processing.
+**JustCompose is different, it's _spicy_**. Gestures, rules, and interactions are **data-driven**, stored in a database, interpreted dynamically at runtime, and completely independent of the camera resolution.
 
-### 🗺️ Normalized Coordinates
+Processing pipeline:
+1. Capture video using **OpenCV**
+2. Detect hands using **MediaPipe**
+3. Extract 21 3D landmarks
+4. Process gesture logic (distances and positions conditions between landmarks)
+5. Trigger sounds based on recognized gestures
+
+## 📸 How The Capture Works
+
+OpenCV captures frames in a continuous loop:
+frame (OpenCV) → detect (MediaPipe) → draw & process (MediaPipe and JustCompose Built-in Methods) → next frame
+
+## ✋ How MediaPipe Returns a Detected Hand
+
+The MediaPipe's hand object is storaged at the `results` variable.
+The object has these three attributtes:
+
+- multi_hand_landmarks
+- multi_handedness
+- multi_hand_world_landmarks
+
+### multi_hand_landmarks
+| Attribute              | Type                 | Description                      |                                           
+| ---------------------- | -------------------- | -------------------------------- | 
+| `multi_hand_landmarks` | `List[LandmarkList]` | Up to 2 hands, 21 landmarks each |  
+
+Each entry in multi_hand_landmarks represents one hand.
+Inside each LandmarkList, there are 21 Landmark objects with normalized coordinates
+
+```python
+right_hand = multi_hand_landmarks[0]          # First detected hand
+index_tip  = right_hand.landmark[8]           # Landmark 8 = index fingertip
+
+print(index_tip)
+>>> landmark = {
+>>>     "x": 0.564345,
+>>>     "y": 0.122322,
+>>>     "z": 0.2212242
+>>> }
+```
+
+#### 🗺️ Landmark Normalized Coordinates
 
 MediaPipe uses **normalized coordinates**, meaning:
 
@@ -30,56 +90,18 @@ Example:
 
 ![Normalized coords](./docs/image.png)
 
-## ✋ How MediaPipe Hands Works
-
-After calling:
-
-```python
-results = mp.solutions.hands.Hands.process(frame)
-```
-
-The `results` object contains several important attributes related to the detected hands.
-
-Below are the attributes used by **JustCompose**:
-
-## 🗺️ `multi_hand_landmarks` Hand Landmark Coordinates
-
 This is the **most important** attribute. It contains 21 3D normalized landmarks for each detected hand.
 
-| Attribute              | Type                 | Description                                                                                                       | Role in JustCompose                                                                                                 |
-| ---------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `multi_hand_landmarks` | `List[LandmarkList]` | A list containing 0, 1, or 2 detected hands. Each hand has 21 landmarks. Returns `None` if no hands are detected. | **Main coordinate source** → used to calculate distances, angles, gestures, finger extension, pinch detection, etc. |
-
-### 🔸 Accessing a Landmark (Index Fingertip Point 8)
-
-Example for the Index Finger Tip of the Right Hand:
-
-```python
-multi_hand_landmarks[0].landmark[8]:
-landmark {
-    x: 0.30
-    y: 0.50
-    z: 0.22
-}
-```
-
-You may read this as:
-0 → first detected hand (commonly the right hand)
-8 → index fingertip landmark
-Coordinates are normalized (0.0–1.0) and z represents relative depth.
-
-
-
-## 🫲 `multi_handedness` Left or Right Hand Classification
+### 🫲 `multi_handedness`
 
 This attribute provides the classification (“Left” or “Right”) for every detected hand.
 It **matches the order** of `multi_hand_landmarks`.
 
-| Attribute          | Type                       | Description                                      | Role in JustCompose                                                                           |
-| ------------------ | -------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `multi_handedness` | `List[ClassificationList]` | Classification for each hand: “Left” or “Right”. | **Role assignment** → e.g., left hand controls instruments/volume, right hand performs notes. |
+| Attribute          | Type                       | Description                                      | 
+| ------------------ | -------------------------- | ------------------------------------------------ | 
+| `multi_handedness` | `List[ClassificationList]` | Classification for each hand: “Left” or “Right”. | 
 
-### 🔸 Accessing the Hand Label
+#### 🔸 Accessing the Hand Label
 
 ```python
 for hand_landmarks, handedness in zip(
@@ -89,20 +111,20 @@ for hand_landmarks, handedness in zip(
     label = handedness.classification[0].label  # "Left" or "Right"
     
     if label == "Left":
-        # Instrument/volume control
+        # Instrument control
         pass
     else:
         # Note/sound triggering
         pass
 ```
 
-## 🌍 `multi_hand_world_landmarks` Real-World 3D Coordinates
+### 🌍 `multi_hand_world_landmarks` Real-World 3D Coordinates
 
 This attribute provides **true 3D coordinates (in meters)** relative to the wrist, independent of camera perspective.
 
-| Attribute                    | Type                 | Description                                                                               | Role in JustCompose                                                                                               |
-| ---------------------------- | -------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `multi_hand_world_landmarks` | `List[LandmarkList]` | Landmarks in realistic 3D space, unaffected by image scaling or distance from the camera. | **Scale-invariant gestures** → useful for advanced control where hand size or distance must not affect detection. |
+| Attribute                    | Type                 | Description                                                                               |
+| ---------------------------- | -------------------- | ----------------------------------------------------------------------------------------- |
+| `multi_hand_world_landmarks` | `List[LandmarkList]` | Landmarks in realistic 3D space, unaffected by image scaling or distance from the camera. |
 
 -----
 
@@ -155,7 +177,7 @@ This section describes the database schema used to store, configure, and recogni
 The system is built on **two relational tables**:
 
 * `gestures` → High-level metadata
-* `gesture_conditions` → Mathematical landmark-based constraints
+* `gesture_conditions` → Booleans landmark-based constraints
 
 This structure allows gestures to be **fully data-driven**, editable without modifying code, and easily expandable.
 
