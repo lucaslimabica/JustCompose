@@ -28,3 +28,10 @@ VS
 ![numero2 errado](./number2wrong.png) 
 
 Vou tentar aplicar um score de confiança aos moves, e uma margem de erro
+
+--- 
+
+Tolerancia Adicionada:
+![Numero 2 mais certo](image-1.png) VS ![Numero 2 meio torto](image-2.png) VS ![Numero 2 ERRADO](image-3.png) (ainda bem que nao foikkkkkk)
+
+Gostei da tolerância, vou aplicar mas preciso mudar as condições mapeadas ainda

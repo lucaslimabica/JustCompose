@@ -282,6 +282,8 @@ class Camera:
                 True if the condition is satisfied,
                 False otherwise.
         """ # print(f"{hand_landmarks}")
+        TOL_Y = 0.01  # A tolerance of 3% of the frame in Y and X, to make it less sensitive
+        TOL_X = 0.02 
         if cond["side"] != handedness_label.lower():
             return False
         
@@ -292,11 +294,13 @@ class Camera:
         vb = getattr(lb, cond["axis"])
 
         op = cond["op"]
+        
+        tol = TOL_X if cond["axis"] == "x" else TOL_Y
 
         if op == "<": 
-            return va < vb
+            return va < vb + tol # It can be a little bigger
         if op == ">":
-            return va > vb
+            return va > vb - tol # It can be a little smaller
 
         return False
 
