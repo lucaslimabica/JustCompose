@@ -83,3 +83,4 @@ database_manager.create_gesture_condition(
     weight=3.0   # mais importante
 )
 ```
+
