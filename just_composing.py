@@ -3,6 +3,7 @@ import cv2 as cv
 import mediapipe as mp
 import pygame
 import database_manager
+import math
 
 
 # TODO: TÁ MUITO SENSÍVEL A CAPTURA, talvez diminuir as conds do move
@@ -281,28 +282,75 @@ class Camera:
             bool:
                 True if the condition is satisfied,
                 False otherwise.
-        """ # print(f"{hand_landmarks}")
-        TOL_Y = 0.01  # A tolerance of 3% of the frame in Y and X, to make it less sensitive
-        TOL_X = 0.02 
+        """
         if cond["side"] != handedness_label.lower():
             return False
         
+        ctype = cond.get("type", "bin")
+
+        if ctype == "bin":
+            return self._cmp_condition(hand_landmarks, cond)
+        elif ctype == "delta":
+            return self._delta_condition(hand_landmarks, cond)
+        elif ctype == "distance":
+            return self._distance_condition(hand_landmarks, cond)
+
+        return False
+
+    
+    def _bin_condition(self, hand_landmarks, cond, tol=0.02):
         la = hand_landmarks[cond["a"]]
         lb = hand_landmarks[cond["b"]]
+        va = getattr(la, cond["axis"])
+        vb = getattr(lb, cond["axis"])
+        op = cond["op"]
 
+        if op == "<": return va < vb + tol
+        if op == ">": return va > vb - tol
+        if op == "<=": return va <= vb + tol
+        if op == ">=": return va >= vb - tol
+        if op == "==": return abs(va - vb) < tol
+        
+        return False
+    
+    def _delta_condition(self, hand_landmarks, cond):
+        la = hand_landmarks[cond["a"]]
+        lb = hand_landmarks[cond["b"]]
         va = getattr(la, cond["axis"])
         vb = getattr(lb, cond["axis"])
 
+        delta = va - vb
+        thr = cond.get("threshold", 0.0)
         op = cond["op"]
-        
-        tol = TOL_X if cond["axis"] == "x" else TOL_Y
 
-        if op == "<": 
-            return va < vb + tol # It can be a little bigger
-        if op == ">":
-            return va > vb - tol # It can be a little smaller
+        if op == "<": return delta < thr
+        if op == ">": return delta > thr
+        return False
+
+    def _distance_condition(self, hand_landmarks, cond):
+        la = hand_landmarks[cond["a"]]
+        lb = hand_landmarks[cond["b"]]
+
+        dx = la.x - lb.x
+        dy = la.y - lb.y
+        dz = la.z - lb.z
+        dist = math.sqrt(dx*dx + dy*dy + dz*dz)
+
+        norm = cond.get("normalize_by", None)
+        if norm == "hand_width":
+            xs = [lm.x for lm in hand_landmarks]
+            hand_width = max(xs) - min(xs)
+            dist /= hand_width or 1.0
+
+        thr = cond.get("threshold", 0.0)
+        op = cond["op"]
+
+        if op == "<": return dist < thr
+        if op == ">": return dist > thr
 
         return False
+
+
 
     def recognize_gesture_from_db(self, hand_landmarks, handedness_label, gestures_db):
         """

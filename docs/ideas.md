@@ -35,3 +35,39 @@ Tolerancia Adicionada:
 ![Numero 2 mais certo](image-1.png) VS ![Numero 2 meio torto](image-2.png) VS ![Numero 2 ERRADO](image-3.png) (ainda bem que nao foikkkkkk)
 
 Gostei da tolerância, vou aplicar mas preciso mudar as condições mapeadas ainda
+
+----
+
+### Mudandos as gestures conditions para ter delta
+
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    gesture_id   INTEGER NOT NULL,
+    type         TEXT NOT NULL DEFAULT 'bin',   -- 'bin' | 'delta' 
+    landmark_a   INTEGER NOT NULL,
+    operator     TEXT NOT NULL,                 -- '<', '>', '<=', '>='
+    landmark_b   INTEGER,                       
+    axis         TEXT,                          -- 'x', 'y'
+    hand_side    TEXT NOT NULL DEFAULT 'any',   -- 'left', 'right', 'any'
+    threshold    REAL,                          -- used for delta
+    normalize_by TEXT,                          -- 'none', 'hand_width', 'hand_height', etc
+    weight       REAL NOT NULL DEFAULT 1.0,     -- allow some rules to matter more
+
+```python
+{
+    "type": "delta",
+    "a": 8,          # fingertip
+    "b": 6,          # pip
+    "axis": "y",
+    "op": "<",       # (a - b) < threshold
+    "threshold": -0.10,
+    "side": "any"
+}
+```
+
+| Conceito                  | DELTA                                     | DISTÂNCIA                               |
+| ------------------------- | ----------------------------------------- | --------------------------------------- |
+| Mede direção?             | ✔ Sim                                     | ❌ Não                                   |
+| Mede magnitude real?      | ❌ Pouco (só eixo isolado)                 | ✔ Sim                                   |
+| Rotação da mão atrapalha? | ✔ Sim                                     | ✔ Menos                                 |
+| Perfeito para reconhecer: | "finger up", "thumb inside", "left/right" | "pinch", "V shape", "open hand", "fist" |
+| Sensível a ruído?         | Médias                                    | Baixo                   |
