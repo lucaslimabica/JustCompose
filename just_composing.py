@@ -87,7 +87,7 @@ class Camera:
         with self.mp_hands.Hands(static_image_mode=True) as hand_detector:
             results = hand_detector.process(cv.cvtColor(image, cv.COLOR_BGR2RGB))
             if results.multi_hand_landmarks:
-                self.draw_landmarks(image, results)
+                self._draw_landmarks(image, results)
             cv.imshow(self.name, image)
             
             while True:
@@ -107,7 +107,7 @@ class Camera:
         Behavior:
             - Opens a VideoCapture stream (using self.device).
             - Processes frames in real time, mirroring the feed.
-            - Runs MediaPipe Hands on each frame and calls self.draw_landmarks().
+            - Runs MediaPipe Hands on each frame and calls self._draw_landmarks().
             
         This method blocks until the stream is interrupted (ESC, 'q', 'l', or window close).
         Resources (VideoCapture, OpenCV windows) are released upon exit.
@@ -129,7 +129,7 @@ class Camera:
                     # Make detections
                     results = hand_detector.process(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
                     if results.multi_hand_landmarks:  # Avoid None for the drawing func
-                        self.draw_landmarks(frame, results)
+                        self._draw_landmarks(frame, results)
 
                     cv.imshow(self.name, frame)
                     
@@ -145,7 +145,7 @@ class Camera:
                 cv.destroyAllWindows()
         
                 
-    def draw_landmarks(self, image, results):
+    def _draw_landmarks(self, image, results):
         """
         Draw hand landmarks, connections, labels, and recognized gestures
         Args:
@@ -183,10 +183,10 @@ class Camera:
             # 3º arg: the connections between the landmarks
             # 4º arg: style for the circles (landmarks)
             # ==========================================================
-            self.draw_landmark_names(image, hand_landmarks, self.capture_mode)
-            self.recognize_gesture(image=image, hand_landmarks=hand_landmarks.landmark, label=label)
+            self._draw_landmark_names(image, hand_landmarks, self.capture_mode)
+            self._recognize_gesture(image=image, hand_landmarks=hand_landmarks.landmark, label=label)
             
-    def draw_landmark_names(self, image, hand_landmarks, mode):
+    def _draw_landmark_names(self, image, hand_landmarks, mode):
         """
         Draw landmark indices or coordinates next to each hand landmark
 
@@ -212,12 +212,12 @@ class Camera:
                 elif mode == "landmarks":
                     coords = f"{i}"
                     
-                width, height = self.get_frame_dimensions(image)
+                width, height = self._get_frame_dimensions(image)
                 px = int(landmark.x * width)
                 py = int(landmark.y * height)
                 cv.putText(img=image, text=coords, org=(px + 30, py), fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=0.5, thickness=1, color=(0, 0, 0), lineType = cv.LINE_AA)
             
-    def bounding_box(self, image, hand_landmarks, mode) -> tuple:
+    def _bounding_box(self, image, hand_landmarks, mode) -> tuple:
         """
         Draw a bounding box around the hand and return its coordinates
         The bounding box is computed using the min/max of the normalized
@@ -236,7 +236,7 @@ class Camera:
                 - (x1, y1) → top-left corner
                 - (x2, y2) → bottom-right corner
         """
-        width, height = self.get_frame_dimensions(image)
+        width, height = self._get_frame_dimensions(image)
         xs = [landmark.x for landmark in hand_landmarks]
         ys = [landmark.y for landmark in hand_landmarks]
         min_x = min(xs)
@@ -251,7 +251,7 @@ class Camera:
             cv.rectangle(img=image, pt1=(x1, y1), pt2=(x2, y2), color=(0, 255, 0), thickness=2)
         return (x1, y1, x2, y2)
         
-    def recognize_gesture(self, image, hand_landmarks: list, label: str):
+    def _recognize_gesture(self, image, hand_landmarks: list, label: str):
         """
         Recognize a gesture for a single hand and draw its name on the image, abocve the bounding box
 
@@ -272,7 +272,7 @@ class Camera:
             - If a gesture matches, its name is rendered above the bounding box.
         """
         gestures = database_manager.load_all_gestures() # load gestures from the database as dicts
-        hand = self.bounding_box(image, hand_landmarks, mode=self.capture_mode=="bounding_box") # draw bounding box and get its area/coordinates
+        hand = self._bounding_box(image, hand_landmarks, mode=self.capture_mode=="bounding_box") # draw bounding box and get its area/coordinates
         detected = self.recognize_gesture_from_db(hand_landmarks, label, gestures)
         if detected:
             cv.putText(image, detected["name"], org=(hand[0], hand[1]-10), fontFace=cv.FONT_HERSHEY_SIMPLEX,fontScale= 1, color=(0,255,0), thickness=2)
@@ -355,7 +355,7 @@ class Camera:
 
         return None
     
-    def get_frame_dimensions(self, image):
+    def _get_frame_dimensions(self, image):
         """
         Returns (width, height) for both videocapture frames and static images.
 
