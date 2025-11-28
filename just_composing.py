@@ -5,8 +5,6 @@ import pygame
 import database_manager
 
 
-# TODO: TÁ MUITO SENSÍVEL A CAPTURA, talvez diminuir as conds do move
-
 class Camera:
     """
     Main camera handler for motion capture and gesture recognition.
@@ -261,30 +259,20 @@ class Camera:
             
     def condition_is_true(self, hand_landmarks, handedness_label, cond) -> bool:
         """
-        Evaluate a single gesture condition against the current hand landmarks
+        Evaluate a single gesture condition against the current hand landmarks.
 
-        Args:
-            hand_landmarks (list):
-                List-like container of MediaPipe `NormalizedLandmark` objects
-                REPRESENTING A SINGLE HAND
-            handedness_label (str):
-                Handedness label, `"Right"` or `"Left"`.
-            cond (dict):
-                Condition dictionary loaded from the database, with keys:
-                    - "a":    index of the first landmark (int)
-                    - "b":    index of the second landmark (int)
-                    - "op":   comparison operator (str: "<", ">", "<=", ">=", "==")
-                    - "axis": coordinate axis to compare ("x", "y", or "z")
-                    - "side": which hand this condition applies to ("left", "right", "any")
+        - If cond["side"] is "left" or "right", the condition only applies to that hand.
+        - If cond["side"] is "any", it applies to both.
+        - Conditions that do NOT apply to the current hand side are treated as satisfied
+          (ignored) so they don't penalize the gesture.
+        """
+        side = cond.get("side", "any").lower()
+        hand = handedness_label.lower()  # "right" or "left"
 
-        Returns:
-            bool:
-                True if the condition is satisfied,
-                False otherwise.
-        """ # print(f"{hand_landmarks}")
-        if cond["side"] != handedness_label.lower():
-            return False
-        
+        # Se a condição é específica de um lado e não é dessa mão -> ignora (conta como True)
+        if side != "any" and side != hand:
+            return True
+
         la = hand_landmarks[cond["a"]]
         lb = hand_landmarks[cond["b"]]
 
@@ -293,12 +281,20 @@ class Camera:
 
         op = cond["op"]
 
-        if op == "<": 
-            return va < vb
+        # Pequena tolerância pra não ficar absurdamente sensível
+        tol = 0.02
+
+        if op == "<":
+            return va < vb + tol
         if op == ">":
-            return va > vb
+            return va > vb - tol
+        if op == "<=":
+            return va <= vb + tol
+        if op == ">=":
+            return va >= vb - tol
 
         return False
+
 
     def recognize_gesture_from_db(self, hand_landmarks, handedness_label, gestures_db):
         """
