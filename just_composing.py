@@ -54,25 +54,63 @@ class Camera:
     
     def capture(self):
         """
-        Start the capture loop AND process frames from the configured device with MediaPipe Hands
-
-        Behavior:
-            - If `self.device` is an integer:
-                * Opens a VideoCapture stream.
-                * Processes frames in real time.
-                * Runs MediaPipe Hands on each frame.
-                * Draws landmarks and recognized gestures if any.
-            - If `self.device` is a string and points to an image file:
-                * Loads the image.
-                * Runs MediaPipe Hands once.
-                * Draws landmarks and recognized gestures.
-
-        This method blocks until:
-            - The window is closed, or
-            - The user presses ESC, 'q', or 'l'.
+        Initializes the motion capture process based on the configured device.
+        
+        This method acts as a router:
+            - If device is a camera index (int), it delegates to real-time video processing.
+            - If device is an image file path (str), it delegates to static image processing.
+        
+        The delegated process blocks the thread until the window is closed 
+        or a termination key (ESC, 'q', or 'l') is pressed.
         """
         if self.device == 0:        
-            with self.mp_hands.Hands() as hand_detector:
+            self._process_video_stream()
+        elif isinstance(self.device, str) and self.device.endswith(self.compatible_file_types):
+            self._process_image()
+
+    def _process_image(self):
+        """
+        Loads a static image from self.device and performs a single pass of
+        hand detection and gesture recognition.
+        
+        Behavior:
+            - Loads the image using OpenCV.
+            - Runs MediaPipe Hands in static_image_mode=True once.
+            - Draws landmarks and recognized gestures.
+            
+        The resulting image is displayed until a termination key is pressed 
+        (ESC, 'q', 'l', or window close).
+        """       
+        image = cv.imread(self.device)
+        with self.mp_hands.Hands(static_image_mode=True) as hand_detector:
+            results = hand_detector.process(cv.cvtColor(image, cv.COLOR_BGR2RGB))
+            if results.multi_hand_landmarks:
+                self.draw_landmarks(image, results)
+            cv.imshow(self.name, image)
+            
+            while True:
+                key = cv.waitKey(1) 
+                # Keyboard LEGACY
+                if key in [27, ord("q"), ord("l")]:
+                    break
+                if cv.getWindowProperty(self.name, cv.WND_PROP_VISIBLE) < 1:
+                    break
+                
+            cv.destroyAllWindows()
+            
+    def _process_video_stream(self):
+        """
+        Starts the real-time video capture loop for live motion detection.
+
+        Behavior:
+            - Opens a VideoCapture stream (using self.device).
+            - Processes frames in real time, mirroring the feed.
+            - Runs MediaPipe Hands on each frame and calls self.draw_landmarks().
+            
+        This method blocks until the stream is interrupted (ESC, 'q', 'l', or window close).
+        Resources (VideoCapture, OpenCV windows) are released upon exit.
+        """
+        with self.mp_hands.Hands() as hand_detector:
                 self.cap = cv.VideoCapture(self.device)
                 if not self.cap.isOpened(): 
                     print("No video source :(")
@@ -103,28 +141,7 @@ class Camera:
                 # Break of the loop -> Release resources
                 self.cap.release()
                 cv.destroyAllWindows()
-
-                
-        elif isinstance(self.device, str) and self.device.endswith(self.compatible_file_types):
-            image = cv.imread(self.device)
-
-            with self.mp_hands.Hands(static_image_mode=True) as hand_detector:
-                results = hand_detector.process(cv.cvtColor(image, cv.COLOR_BGR2RGB))
-                if results.multi_hand_landmarks:
-                    self.draw_landmarks(image, results)
-
-                cv.imshow(self.name, image)
-
-                while True:
-                    key = cv.waitKey(1) 
-                    # Keyboard LEGACY
-                    if key in [27, ord("q"), ord("l")]:
-                        break
-                    if cv.getWindowProperty(self.name, cv.WND_PROP_VISIBLE) < 1:
-                        break
-                    
-                cv.destroyAllWindows()
-
+        
                 
     def draw_landmarks(self, image, results):
         """
