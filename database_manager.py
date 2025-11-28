@@ -154,7 +154,4 @@ def example():
     # Thumb position condition (thumb tip to the side of the hand)
     create_gesture_condition(gesture, 4, ">", 6, "x", hand_side="right")
     create_gesture_condition(gesture, 4, "<", 6, "x", hand_side="left")
-
-   
-   
-con, cursor = connect_database()
+    

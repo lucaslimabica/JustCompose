@@ -3,7 +3,6 @@ import cv2 as cv
 import mediapipe as mp
 import pygame
 import database_manager
-import math
 
 
 # TODO: TÁ MUITO SENSÍVEL A CAPTURA, talvez diminuir as conds do move
@@ -262,358 +261,85 @@ class Camera:
             
     def condition_is_true(self, hand_landmarks, handedness_label, cond) -> bool:
         """
-        Evaluate a single gesture condition against the current hand landmarks.
+        Evaluate a single gesture condition against the current hand landmarks
 
-        This function acts as a unified dispatcher for all supported condition types:
-        - **"bin"**:     Axis-wise comparison between two landmarks (A.axis < B.axis, etc.)
-        - **"delta"**:   Signed difference test (A.axis - B.axis < threshold)
-        - **"distance"**: Euclidean distance test between landmarks A and B,
-                          optionally normalized (e.g., by hand width).
+        Args:
+            hand_landmarks (list):
+                List-like container of MediaPipe `NormalizedLandmark` objects
+                REPRESENTING A SINGLE HAND
+            handedness_label (str):
+                Handedness label, `"Right"` or `"Left"`.
+            cond (dict):
+                Condition dictionary loaded from the database, with keys:
+                    - "a":    index of the first landmark (int)
+                    - "b":    index of the second landmark (int)
+                    - "op":   comparison operator (str: "<", ">", "<=", ">=", "==")
+                    - "axis": coordinate axis to compare ("x", "y", or "z")
+                    - "side": which hand this condition applies to ("left", "right", "any")
 
-        Before evaluating the condition, the function also checks if the rule
-        applies to the detected hand side ("left", "right", or "any").
-
-        ----------------------------------------------------------------------
-        Parameters
-        ----------------------------------------------------------------------
-        hand_landmarks : list[NormalizedLandmark]
-            A list (indexable 0-20) of MediaPipe `NormalizedLandmark` objects
-            representing **one single detected hand**.
-
-        handedness_label : str
-            Detected handedness of this hand ("Left" or "Right").
-            Used to filter out conditions that apply only to one side.
-
-        cond : dict
-            Condition record loaded from the gesture database. Expected keys:
-
-            Required:
-                - "a"   (int): landmark index A
-                - "b"   (int): landmark index B
-                - "op"  (str): comparison operator ("<", ">", "<=", ">=", "==")
-                - "side" (str): "left", "right", or "any"
-
-           Depending on type:
-                - type "bin":
-                    - "axis" (str): "x", "y", or "z"
-                    Compares A.axis with B.axis using operator.
-
-                - type "delta":
-                    - "axis" (str): "x", "y", or "z"
-                    - "threshold" (float): threshold for (A.axis - B.axis)
-                    Evaluates: (A.axis - B.axis) <op> threshold
-
-                - type "distance":
-                    - "threshold" (float): threshold to compare against distance(A,B)
-                    - "normalize_by" (str | None):
-                          One of: None, "hand_width", "hand_height".
-                    Evaluates: distance(A,B) <op> threshold*(normalization)
-
-            Optional:
-                - "type" (str):
-                      One of: "bin" (default), "delta", "distance"
-                - "weight" (float):
-                      Condition weight (used by the gesture classifier).
-
-        ----------------------------------------------------------------------
-        Returns
-        ----------------------------------------------------------------------
-        bool
-            True if the condition is satisfied; False otherwise.
-
-            Conditions that do **not apply** to the current hand side
-            (cond["side"] == "left" and detected hand is right)
-            are treated as **automatically satisfied** enabling
-            symmetrical gestures, if we had one.
-        """
-        side = cond.get("side", "any").lower()
-        hand = handedness_label.lower()
-        if side != "any" and side != hand:
-            return True
+        Returns:
+            bool:
+                True if the condition is satisfied,
+                False otherwise.
+        """ # print(f"{hand_landmarks}")
+        if cond["side"] != handedness_label.lower():
+            return False
         
-        ctype = cond.get("type", "bin")
-
-        if ctype == "bin":
-            return self._cmp_condition(hand_landmarks, cond)
-        elif ctype == "delta":
-            return self._delta_condition(hand_landmarks, cond)
-        elif ctype == "distance":
-            return self._distance_condition(hand_landmarks, cond)
-
-        return False
-
-    
-    def _bin_condition(self, hand_landmarks, cond, tol=0.02):
-        """
-        Evaluate a binary axis-wise comparison between two landmarks.
-
-        This is the base comparison used for "bin" (binary/boolean) conditions,
-        corresponding to inequalities such as:
-
-            A.axis < B.axis
-            A.axis > B.axis
-            A.axis == B.axis
-            ...
-
-        A small tolerance (`tol`) is applied to reduce noise from
-        MediaPipe's subpixel landmark jitter.
-
-        ----------------------------------------------------------------------
-        Parameters
-        ----------------------------------------------------------------------
-        hand_landmarks : list[NormalizedLandmark]
-            List of 21 MediaPipe hand landmarks for a single hand.
-
-        cond : dict
-            Condition with keys:
-                - "a"     (int): landmark index A
-                - "b"     (int): landmark index B
-                - "axis"  (str): "x", "y", or "z"
-                - "op"    (str): "<", ">", "<=", ">=", "=="
-
-        tol : float
-            Noise compensation tolerance added to the comparison.
-            For example, "<" becomes `(va < vb + tol)`.
-
-        ----------------------------------------------------------------------
-        Returns
-        ----------------------------------------------------------------------
-        bool
-            True if comparison (with tolerance) holds.
-        """
         la = hand_landmarks[cond["a"]]
         lb = hand_landmarks[cond["b"]]
-        va = getattr(la, cond["axis"])
-        vb = getattr(lb, cond["axis"])
-        op = cond["op"]
 
-        if op == "<": return va < vb + tol
-        if op == ">": return va > vb - tol
-        if op == "<=": return va <= vb + tol
-        if op == ">=": return va >= vb - tol
-        if op == "==": return abs(va - vb) < tol
-        
-        return False
-    
-    def _delta_condition(self, hand_landmarks, cond):
-        """
-        Evaluate a signed difference condition between two landmarks
-        along a chosen axis.
-
-        This checks conditions of the form:
-
-            (A.axis - B.axis) < threshold
-            (A.axis - B.axis) > threshold
-
-        Delta-based conditions measure *how much* one landmark is above,
-        below, left, or right of another, instead of only the direction.
-        This is useful for "finger clearly up", "thumb clearly open",
-        or any logic requiring a magnitude in the comparison.
-
-        ----------------------------------------------------------------------
-        Parameters
-        ----------------------------------------------------------------------
-        hand_landmarks : list[NormalizedLandmark]
-            List of 21 hand landmarks for the current detected hand.
-
-        cond : dict
-            Condition with keys:
-                - "a"         (int): landmark A
-                - "b"         (int): landmark B
-                - "axis"      (str): "x", "y", or "z"
-                - "threshold" (float): threshold for the delta
-                - "op"        (str): "<" or ">"
-
-        ----------------------------------------------------------------------
-        Returns
-        ----------------------------------------------------------------------
-        bool
-            True if the signed delta comparison is satisfied.
-        """
-        la = hand_landmarks[cond["a"]]
-        lb = hand_landmarks[cond["b"]]
         va = getattr(la, cond["axis"])
         vb = getattr(lb, cond["axis"])
 
-        delta = va - vb
-        thr = cond.get("threshold", 0.0)
         op = cond["op"]
 
-        if op == "<": return delta < thr
-        if op == ">": return delta > thr
-        return False
-
-    def _distance_condition(self, hand_landmarks, cond):
-        """
-        Evaluate a distance-based condition between two landmarks.
-
-        Computes the Euclidean distance:
-
-            dist = sqrt( (Ax - Bx)^2 + (Ay - By)^2 + (Az - Bz)^2 )
-
-        Optionally normalizes the distance by:
-            - "hand_width":  max(x) - min(x)
-
-        This allows gesture rules to remain stable regardless of:
-            * hand size
-            * camera distance
-            * perspective distortion
-
-        Distance-based rules are ideal for:
-            - pinch gestures (thumb-index proximity)
-            - V shapes (index-middle separation)
-            - open-hand vs closed-fist measurements
-            - zoom-like gestures (distance increasing/decreasing)
-
-        ----------------------------------------------------------------------
-        Parameters
-        ----------------------------------------------------------------------
-        hand_landmarks : list[NormalizedLandmark]
-            List of 21 MediaPipe hand landmarks (single hand).
-
-        cond : dict
-            Condition with keys:
-                - "a"             (int): landmark A
-                - "b"             (int): landmark B
-                - "op"            (str): "<" or ">"
-                - "threshold"     (float): distance threshold
-                - "normalize_by"  (str | None):
-                        None
-                        "hand_width"
-                        "hand_height"   (future)
-                        "palm_size"     (future)
-
-        ----------------------------------------------------------------------
-        Returns
-        ----------------------------------------------------------------------
-        bool
-            True if the (normalized) distance satisfies the comparison.
-        """
-        la = hand_landmarks[cond["a"]]
-        lb = hand_landmarks[cond["b"]]
-
-        dx = la.x - lb.x
-        dy = la.y - lb.y
-        dz = la.z - lb.z
-        dist = math.sqrt(dx*dx + dy*dy + dz*dz)
-
-        norm = cond.get("normalize_by", None)
-        if norm == "hand_width":
-            xs = [lm.x for lm in hand_landmarks]
-            hand_width = max(xs) - min(xs)
-            dist /= hand_width or 1.0
-
-        thr = cond.get("threshold", 0.0)
-        op = cond["op"]
-
-        if op == "<": return dist < thr
-        if op == ">": return dist > thr
+        if op == "<": 
+            return va < vb
+        if op == ">":
+            return va > vb
 
         return False
 
-    def recognize_gesture_from_db(self, hand_landmarks, handedness_label, gestures_db, min_score=0.7):
+    def recognize_gesture_from_db(self, hand_landmarks, handedness_label, gestures_db):
         """
-        Match the current hand landmarks against all gestures in the database,
-        using a weighted score over logical conditions.
+        Match the current hand landmarks against all gestures in the database.
 
-        Each gesture is defined as a set of conditions (boolean rules). For every
-        gesture, this method computes:
+        Args:
+            hand_landmarks (list):
+                List-like container of MediaPipe `NormalizedLandmark` objects
+                REPRESENTING A SINGLE HAND
+            handedness_label (str):
+                Handedness label, `"Right"` or `"Left"`.
+            gestures_db (dict):
+                Dictionary of gestures as loaded from the database. Expected format:
+                {
+                    gesture_id: {
+                        "name": str,
+                        "description": str,
+                        "sound": str,
+                        "conditions": [
+                            {"a": int, "op": str, "b": int, "axis": str, "side": str},
+                            ...
+                        ]
+                    },
+                    ...
+                }
 
-            score = (sum of weights of satisfied conditions) / (sum of all weights)
-
-        The gesture with the highest score above `min_score` is returned.
-
-        ----------------------------------------------------------------------
-        Parameters
-        ----------------------------------------------------------------------
-        hand_landmarks : list[NormalizedLandmark]
-            List-like container of MediaPipe `NormalizedLandmark` objects
-            representing a **single hand** (21 landmarks, indices 0–20).
-
-        handedness_label : str
-            Detected handedness for this hand: `"Right"` or `"Left"`.
-            Used by `condition_is_true` to ignore conditions that apply
-            only to the opposite side (e.g. rules for `"left"` when
-            evaluating a `"Right"` hand).
-
-        gestures_db : dict[int, dict]
-            Dictionary of gestures as loaded from the database. Expected format:
-
-            {
-                gesture_id: {
-                    "name": str,
-                    "description": str,
-                    "sound": str,
-                    "conditions": [
-                        {
-                            "type": "bin" | "delta" | "distance",
-                            "a": int,
-                            "b": int,
-                            "op": str,
-                            "axis": str | None,
-                            "side": "left" | "right" | "any",
-                            "threshold": float | None,
-                            "normalize_by": str | None,
-                            "weight": float   # optional, defaults to 1.0
-                        },
-                        ...
-                    ]
-                },
-                ...
-            }
-
-        min_score : float, optional
-            Minimum normalized score required to accept a gesture.
-            Range is [0.0, 1.0]. For example:
-                - 0.7 → tolerant (some conditions may fail)
-                - 0.9 → strict (almost all conditions must pass)
-
-        ----------------------------------------------------------------------
-        Returns
-        ----------------------------------------------------------------------
-        dict | None
-            The gesture dictionary with the **highest score** greater than
-            or equal to `min_score`, or `None` if no gesture reaches the
-            required score.
-
-            Example returned gesture:
-
-            {
-                "name": "Number One",
-                "description": "...",
-                "sound": "./assets/boing.mp3",
-                "conditions": [...]
-            }
+        Returns:
+            dict | None:
+                The first matching gesture dictionary if all its conditions
+                evaluate to True, or None if no gesture matches.
         """
-        best_gesture = None
-        best_score = 0
-
         for gid, gesture in gestures_db.items():
-            conds = gesture["conditions"]
+            match = True
 
-            total_weight = sum(c.get("weight", 1.0) for c in conds)
-            if total_weight == 0:
-                continue
+            for cond in gesture["conditions"]:
+                if not self.condition_is_true(hand_landmarks, handedness_label, cond):
+                    match = False # condition failed cause its different
+                    break
 
-            passed_weight = 0
-
-            for cond in conds:
-                if self.condition_is_true(hand_landmarks, handedness_label, cond):
-                    passed_weight += cond.get("weight", 1.0)
-
-            score = passed_weight / total_weight
-
-            # Debug (optional)
-            # print(f"[DEBUG] {gesture['name']} score: {score:.2f}")
-
-            # Track best gesture
-            if score > best_score:
-                best_score = score
-                best_gesture = gesture
-
-        # Only return gesture if score is high enough
-        if best_gesture and best_score >= min_score:
-            return best_gesture
+            if match:
+                return gesture  # found the first matching gesture
 
         return None
     
