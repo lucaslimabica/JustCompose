@@ -71,3 +71,15 @@ Gostei da tolerância, vou aplicar mas preciso mudar as condições mapeadas ain
 | Rotação da mão atrapalha? | ✔ Sim                                     | ✔ Menos                                 |
 | Perfeito para reconhecer: | "finger up", "thumb inside", "left/right" | "pinch", "V shape", "open hand", "fist" |
 | Sensível a ruído?         | Médias                                    | Baixo                   |
+
+```python
+database_manager.create_gesture_condition(
+    gesture_id,
+    type="distance",
+    a=4, b=8,
+    op="<",
+    threshold=0.05,
+    normalize_by="hand_width",
+    weight=3.0   # mais importante
+)
+```
