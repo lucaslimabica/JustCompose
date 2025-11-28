@@ -87,7 +87,7 @@ class Camera:
         with self.mp_hands.Hands(static_image_mode=True) as hand_detector:
             results = hand_detector.process(cv.cvtColor(image, cv.COLOR_BGR2RGB))
             if results.multi_hand_landmarks:
-                self._draw_landmarks(image, results)
+                self._capture_hands(image, results)
             cv.imshow(self.name, image)
             
             while True:
@@ -107,7 +107,7 @@ class Camera:
         Behavior:
             - Opens a VideoCapture stream (using self.device).
             - Processes frames in real time, mirroring the feed.
-            - Runs MediaPipe Hands on each frame and calls self._draw_landmarks().
+            - Runs MediaPipe Hands on each frame and calls self._capture_hands().
             
         This method blocks until the stream is interrupted (ESC, 'q', 'l', or window close).
         Resources (VideoCapture, OpenCV windows) are released upon exit.
@@ -129,7 +129,7 @@ class Camera:
                     # Make detections
                     results = hand_detector.process(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
                     if results.multi_hand_landmarks:  # Avoid None for the drawing func
-                        self._draw_landmarks(frame, results)
+                        self._capture_hands(frame, results)
 
                     cv.imshow(self.name, frame)
                     
@@ -145,7 +145,7 @@ class Camera:
                 cv.destroyAllWindows()
         
                 
-    def _draw_landmarks(self, image, results):
+    def _capture_hands(self, image, results, draw=False):
         """
         Draw hand landmarks, connections, labels, and recognized gestures
         Args:
@@ -154,6 +154,8 @@ class Camera:
             results (mediapipe.framework.formats.landmark_pb2.NormalizedLandmarkList):
                 The result object returned from `mp_hands.Hands.process(...)`,
                 containing `multi_hand_landmarks` and `multi_handedness`.
+            draw (bool, optional):
+                If True, draws the landmarks and connections on the image. Defaults to False.
 
         Behavior:
             - Iterates over each detected hand and its handedness.
@@ -164,25 +166,27 @@ class Camera:
         for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
             label = handedness.classification[0].label # classification is a list of all possible classes for the hand, so the 0 is the more accurate one
             score = handedness.classification[0].score
-            if label == "Right":
-                hand_color = (235, 137, 52)
-            else:
-                hand_color = (235, 52, 113)
-            score_color = (0, 255, int(255 * (1 - score))) # from yellow to green based on the score
             
-            # Then, draw the landmarks on the frame
-            self.mp_drawing.draw_landmarks(
-                image, 
-                hand_landmarks, 
-                self.mp_hands.HAND_CONNECTIONS,
-                self.mp_drawing.DrawingSpec(color=score_color, thickness=1, circle_radius=3),
-                self.mp_drawing.DrawingSpec(color=hand_color, thickness=1, circle_radius=1)
-            )
-            # 1º arg: image to draw on
-            # 2º arg: landmarks to draw
-            # 3º arg: the connections between the landmarks
-            # 4º arg: style for the circles (landmarks)
-            # ==========================================================
+            if draw or self.capture_mode in self._CAPTURE_MODES:
+                if label == "Right":
+                    hand_color = (235, 137, 52)
+                else:
+                    hand_color = (235, 52, 113)
+                score_color = (0, 255, int(255 * (1 - score))) # from yellow to green based on the score
+
+                # Then, draw the landmarks on the frame
+                self.mp_drawing.draw_landmarks(
+                    image, 
+                    hand_landmarks, 
+                    self.mp_hands.HAND_CONNECTIONS,
+                    self.mp_drawing.DrawingSpec(color=score_color, thickness=1, circle_radius=3),
+                    self.mp_drawing.DrawingSpec(color=hand_color, thickness=1, circle_radius=1)
+                )
+                # 1º arg: image to draw on
+                # 2º arg: landmarks to draw
+                # 3º arg: the connections between the landmarks
+                # 4º arg: style for the circles (landmarks)
+                # ==========================================================
             self._draw_landmark_names(image, hand_landmarks, self.capture_mode)
             self._recognize_gesture(image=image, hand_landmarks=hand_landmarks.landmark, label=label)
             
