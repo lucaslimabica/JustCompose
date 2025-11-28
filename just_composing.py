@@ -16,6 +16,7 @@ class Camera:
     """
     
     _TOLERANCE_THRESHOLD = 0.02  # Small tolerance for landmark comparisons
+    _CAPTURE_MODES = ["landmarks", "landmarks_coords", "bounding_box"]
     
     def __init__(self, name="Just Compose Beta", device=0, capture_mode=None):
         """
@@ -36,6 +37,7 @@ class Camera:
                 Supported values:
                     - "landmarks"         → draw only the landmark indices
                     - "landmarks_coords"  → draw landmark indices + normalized coordinates
+                    - "bounding_box"      → draw the bounding box around the hand
                     - None                → do not draw any landmark labels
                 Defaults to None.
         """
@@ -181,8 +183,7 @@ class Camera:
             # 3º arg: the connections between the landmarks
             # 4º arg: style for the circles (landmarks)
             # ==========================================================
-            if self.capture_mode in ["landmarks", "landmarks_coords"]:
-                self.draw_landmark_names(image, hand_landmarks, self.capture_mode)
+            self.draw_landmark_names(image, hand_landmarks, self.capture_mode)
             self.recognize_gesture(image=image, hand_landmarks=hand_landmarks.landmark, label=label)
             
     def draw_landmark_names(self, image, hand_landmarks, mode):
@@ -201,6 +202,8 @@ class Camera:
                     - "landmarks"         → only the landmark index (0–20).
                     - "landmarks_coords"  → index + normalized (x, y) coordinates.
         """
+        if mode not in ["landmarks", "landmarks_coords"]:
+            return
         for i, landmark in enumerate(hand_landmarks.landmark): # Iterate over each landmark of the hand
                 # Depending on the capture mode, display differents texts
                 coords = ""
@@ -214,7 +217,7 @@ class Camera:
                 py = int(landmark.y * height)
                 cv.putText(img=image, text=coords, org=(px + 30, py), fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=0.5, thickness=1, color=(0, 0, 0), lineType = cv.LINE_AA)
             
-    def draw_bounding_box(self, image, hand_landmarks) -> tuple:
+    def bounding_box(self, image, hand_landmarks, mode) -> tuple:
         """
         Draw a bounding box around the hand and return its coordinates
         The bounding box is computed using the min/max of the normalized
@@ -244,7 +247,8 @@ class Camera:
         y1 = int(min_y * height) - 20
         x2 = int(max_x * width) + 20
         y2 = int(max_y * height) + 20
-        cv.rectangle(img=image, pt1=(x1, y1), pt2=(x2, y2), color=(0, 255, 0), thickness=2)
+        if mode:
+            cv.rectangle(img=image, pt1=(x1, y1), pt2=(x2, y2), color=(0, 255, 0), thickness=2)
         return (x1, y1, x2, y2)
         
     def recognize_gesture(self, image, hand_landmarks: list, label: str):
@@ -267,8 +271,8 @@ class Camera:
             - Attempts to match the current hand landmarks against each gesture.
             - If a gesture matches, its name is rendered above the bounding box.
         """
-        hand = self.draw_bounding_box(image, hand_landmarks)
         gestures = database_manager.load_all_gestures() # load gestures from the database as dicts
+        hand = self.bounding_box(image, hand_landmarks, mode=self.capture_mode=="bounding_box") # draw bounding box and get its area/coordinates
         detected = self.recognize_gesture_from_db(hand_landmarks, label, gestures)
         if detected:
             cv.putText(image, detected["name"], org=(hand[0], hand[1]-10), fontFace=cv.FONT_HERSHEY_SIMPLEX,fontScale= 1, color=(0,255,0), thickness=2)
