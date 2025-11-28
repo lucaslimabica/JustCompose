@@ -15,7 +15,8 @@ COLOR_BUTTON_DARK = (100, 100, 100)
 BUTTON_SIZE = (250, 60)
 
 BTN_COMPOSE_Y = 250
-BTN_RECORD_Y = 350 
+BTN_RECORD_Y = 350
+BTN_DEBBUG_Y = 450
 
 
 def draw_button(screen, rect, font, text_content, mouse_pos):
@@ -50,6 +51,10 @@ def main():
     btn_compose_rect = pygame.Rect(0, 0, *BUTTON_SIZE)
     btn_compose_rect.center = (width // 2, BTN_COMPOSE_Y)
     
+    # Start Debbuging
+    btn_debbug_rect = pygame.Rect(0, 0, *BUTTON_SIZE)
+    btn_debbug_rect.center = (width // 2, BTN_DEBBUG_Y)
+    
     # Start Recording
     btn_record_rect = pygame.Rect(0, 0, *BUTTON_SIZE)
     btn_record_rect.center = (width // 2, BTN_RECORD_Y)
@@ -73,6 +78,12 @@ def main():
                     cam.capture()
                     main()
                     
+                if btn_debbug_rect.collidepoint(mouse_pos):
+                    cam = Camera(device=0, capture_mode="bounding_box")
+                    pygame.display.quit()
+                    cam.capture()
+                    main()
+                    
                 if btn_record_rect.collidepoint(mouse_pos):
                     recorder = Recorder()
                     pygame.display.quit()
@@ -83,6 +94,7 @@ def main():
         
         screen.fill(BG_COLOR)
         draw_button(screen, btn_compose_rect, font, "Start Composing", mouse_pos)
+        draw_button(screen, btn_debbug_rect, font, "Start Debbuging", mouse_pos)
         draw_button(screen, btn_record_rect, font, "Start Recording", mouse_pos)
 
         pygame.display.flip()
