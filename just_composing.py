@@ -15,6 +15,8 @@ class Camera:
     - Recognizing gestures based on conditions stored in the database
     """
     
+    _TOLERANCE_THRESHOLD = 0.02  # Small tolerance for landmark comparisons
+    
     def __init__(self, name="Just Compose Beta", device=0, capture_mode=None):
         """
         Initialize the Camera
@@ -37,17 +39,14 @@ class Camera:
                     - None                → do not draw any landmark labels
                 Defaults to None.
         """
-        # Pygame structure
-        self.mixer = pygame.mixer
-        self.mixer.init()
-        self.audio_channel = self.mixer.Channel(0)
-        self.boing = self.mixer.Sound("C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/assets/boing.mp3")
+
 
         # MediaPipe structure
         self.mp_hands = mp.solutions.hands 
         self.mp_drawing = mp.solutions.drawing_utils
         
         # Class attributes
+        self.dj = DJ()
         self.name = name
         self.device = device
         self.compatible_file_types = ('.jpg', '.jpeg', '.png')
@@ -269,7 +268,6 @@ class Camera:
         side = cond.get("side", "any").lower()
         hand = handedness_label.lower()  # "right" or "left"
 
-        # Se a condição é específica de um lado e não é dessa mão -> ignora (conta como True)
         if side != "any" and side != hand:
             return True
 
@@ -281,17 +279,14 @@ class Camera:
 
         op = cond["op"]
 
-        # Pequena tolerância pra não ficar absurdamente sensível
-        tol = 0.02
-
         if op == "<":
-            return va < vb + tol
+            return va < vb + self._TOLERANCE_THRESHOLD
         if op == ">":
-            return va > vb - tol
+            return va > vb - self._TOLERANCE_THRESHOLD
         if op == "<=":
-            return va <= vb + tol
+            return va <= vb + self._TOLERANCE_THRESHOLD
         if op == ">=":
-            return va >= vb - tol
+            return va >= vb - self._TOLERANCE_THRESHOLD
 
         return False
 
@@ -357,3 +352,14 @@ class Camera:
         # Fallback for images (numpy array)
         h, w = image.shape[:2]
         return w, h
+    
+class DJ():
+    
+    _AUDIO_MOKE_FILE = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/assets/boing.mp3"
+    
+    def __init__(self):
+        # Pygame structure
+        self.mixer = pygame.mixer
+        self.mixer.init()
+        self.audio_channel = self.mixer.Channel(0)
+        self.boing = self.mixer.Sound(self._AUDIO_MOKE_FILE)
