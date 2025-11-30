@@ -84,3 +84,52 @@ database_manager.create_gesture_condition(
 )
 ```
 
+# ESQUEÇA TUDO ACIMA AKSJAKSJAKSKANSKAJSKAJSKJAK
+# ESTOU USANDO O RECOGNIZER NATIVO DE GESTOS DO MEDIAPIE
+
+## Mas como ele funciona?
+
+Criei uma classe para reconhecer gestos via Mediapipe, protótipo
+
+```python
+class HandSpeller():
+    """
+    The Gesture Recognizer
+    """
+    _MODEL_PATH = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/gesture_recognizer.task"
+    
+    def __init__(self, model = _MODEL_PATH, running_mode=vision.RunningMode.LIVE_STREAM):
+        # São atributos padrões do Mediapipe, entao declaro-os como attr
+        self.base_options = python.BaseOptions(model_asset_path=model)
+        self.options = vision.GestureRecognizerOptions(base_options=self.base_options, running_mode=running_mode)
+        self.recognizer = vision.GestureRecognizer.create_from_options(self.options)
+    
+    def process_image(self, image):
+        # Vou pegar um frame do OpenCV, convertê-lo para RGB e processá-lo MediaPipe 
+        image_rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB) # Convert BGR (OpenCV) -> RGB (MediaPipe Image)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
+        
+        # Get the gestures
+        # Mesma lógica das landmarks
+        result = self.recognizer.recognize(mp_image)
+        
+        if not result.gestures or not result.hand_landmarks:
+            return image, None, None
+        
+        
+        top_gesture = result.gestures[0][0]  # [hand][ranking]
+        gesture_name = top_gesture.category_name
+        gesture_score = top_gesture.score
+        # Exemplo: All gestures: [Category(index=-1, score=0.883987307548523, display_name='', category_name='Pointing_Up')] 
+
+        print(f"Gesture: {gesture_name}, Score: {gesture_score:.2f}\n")
+        for i in range(len(result.gestures)):
+            print(f"All gestures: {result.gestures[i]}\n")
+```
+Saída esperada (detalhe ao console):
+
+![Ronaldo Fazendo o Número 1](image-4.png)
+
+
+Outro exemplo:
+![alt text](image-5.png)

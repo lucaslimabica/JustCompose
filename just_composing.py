@@ -3,6 +3,9 @@ import cv2 as cv
 import mediapipe as mp
 import pygame
 import database_manager
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+from mediapipe.framework.formats import landmark_pb2
 
 
 class Camera:
@@ -52,7 +55,8 @@ class Camera:
         self.name = name
         self.device = device
         self.compatible_file_types = ('.jpg', '.jpeg', '.png')
-        self.capture_mode = capture_mode 
+        self.capture_mode = capture_mode
+        self.recognizer = HandSpeller(running_mode=vision.RunningMode.IMAGE)
     
     def capture(self):
         """
@@ -84,6 +88,7 @@ class Camera:
         (ESC, 'q', 'l', or window close).
         """       
         image = cv.imread(self.device)
+        self.recognizer.process_image(image)
         with self.mp_hands.Hands(static_image_mode=True) as hand_detector:
             results = hand_detector.process(cv.cvtColor(image, cv.COLOR_BGR2RGB))
             if results.multi_hand_landmarks:
@@ -98,7 +103,7 @@ class Camera:
                 if cv.getWindowProperty(self.name, cv.WND_PROP_VISIBLE) < 1:
                     break
                 
-            cv.destroyAllWindows()
+        cv.destroyAllWindows()
             
     def _process_video_stream(self):
         """
@@ -403,4 +408,54 @@ class Hand():
     def getSoundFilePath(self):
         return self.sound_file_path
     
+class HandSpeller():
+    """
+    The Gesture Recognizer
+    """
+    _MODEL_PATH = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/gesture_recognizer.task"
     
+    def __init__(self, model = _MODEL_PATH, running_mode=vision.RunningMode.LIVE_STREAM):
+        """_summary_
+
+        Args:
+            model (_type_, optional): _description_. Defaults to _MODEL_PATH.
+            running_mode (_type_, optional): _description_. Defaults to vision.RunningMode.LIVE_STREAM. 
+            Avaliable modes:
+                - vision.RunningMode.LIVE_STREAM
+                - vision.RunningMode.VIDEO
+                - vision.RunningMode.IMAGE
+        """
+        self.base_options = python.BaseOptions(model_asset_path=model)
+        self.options = vision.GestureRecognizerOptions(base_options=self.base_options, running_mode=running_mode)
+        self.recognizer = vision.GestureRecognizer.create_from_options(self.options)
+    
+    def process_image(self, image):
+        """Process a single image and return the recognition result
+
+        Args:
+            image (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        image_rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB) # Convert BGR (OpenCV) -> RGB (MediaPipe Image)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
+        
+        # Get the gestures
+        result = self.recognizer.recognize(mp_image)
+        
+        if not result.gestures or not result.hand_landmarks:
+            return image, None, None
+        
+        
+        top_gesture = result.gestures[0][0]  # [hand][ranking]
+        gesture_name = top_gesture.category_name
+        gesture_score = top_gesture.score
+        
+        #top_gesture2 = result.gestures[0][1]  # [hand][ranking]
+        #gesture_name2 = top_gesture2.category_name
+        #gesture_score2 = top_gesture2.score
+    
+        print(f"Top Gesture: {gesture_name}, Score: {gesture_score:.2f}, more info: {top_gesture}\n")
+        #print(f"Top Gesture2: {gesture_name2}, Score: {gesture_score2:.2f}, more info: {top_gesture2}\n")
+        print(f"All gestures: {result}")
