@@ -426,7 +426,7 @@ class HandSpeller():
                 - vision.RunningMode.IMAGE
         """
         self.base_options = python.BaseOptions(model_asset_path=model)
-        self.options = vision.GestureRecognizerOptions(base_options=self.base_options, running_mode=running_mode)
+        self.options = vision.GestureRecognizerOptions(base_options=self.base_options, running_mode=running_mode, num_hands=2)
         self.recognizer = vision.GestureRecognizer.create_from_options(self.options)
     
     def process_image(self, image):
@@ -452,10 +452,12 @@ class HandSpeller():
         gesture_name = top_gesture.category_name
         gesture_score = top_gesture.score
         
-        #top_gesture2 = result.gestures[0][1]  # [hand][ranking]
-        #gesture_name2 = top_gesture2.category_name
-        #gesture_score2 = top_gesture2.score
+        top_gesture2 = result.gestures[1][0]  # [hand][ranking]
+        gesture_name2 = top_gesture2.category_name
+        gesture_score2 = top_gesture2.score
     
         print(f"Top Gesture: {gesture_name}, Score: {gesture_score:.2f}, more info: {top_gesture}\n")
-        #print(f"Top Gesture2: {gesture_name2}, Score: {gesture_score2:.2f}, more info: {top_gesture2}\n")
-        print(f"All gestures: {result}")
+        print(f"Top Gesture2: {gesture_name2}, Score: {gesture_score2:.2f}, more info: {top_gesture2}\n")
+        print(result.gestures[1][0].category_name) # Nos gestos -> Mão esquerda -> Attr do nome
+        print(result.hand_landmarks[0][6:9]) # Nas landmarks normalizadas -> Landmarks do index finger -> Print de suas coords completas
+        #print(f"All gestures: {result}")
