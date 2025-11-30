@@ -388,3 +388,19 @@ class DJ():
         self.mixer.init()
         self.audio_channel = self.mixer.Channel(0)
         self.boing = self.mixer.Sound(self._AUDIO_MOKE_FILE)
+        
+    def play_sound(self, hand):
+        sound = self.mixer.Sound(hand.getSoundFilePath())
+        self.audio_channel.play(sound)
+        
+class Hand():
+    
+    def __init__(self, side, pose):
+        self.side = side
+        self.pose = pose
+        self.sound_file_path
+        
+    def getSoundFilePath(self):
+        return self.sound_file_path
+    
+    
