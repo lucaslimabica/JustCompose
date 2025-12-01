@@ -405,11 +405,13 @@ class DJ():
         
 class Hand():
     
-    def __init__(self, side: str, gesture: str, landmarks: list):
+    def __init__(self, side: str, gesture, landmarks: list):
         self.side = side
         self.sound_file_path = None
         self.landmarks = landmarks
-        self.gesture = gesture
+        self.gesture = gesture.category_name
+        self.landmarks_origin = (min(land.x for land in self.landmarks), min(land.y for land in self.landmarks))
+        self.landmarks_end = (max(land.x for land in self.landmarks), max(land.y for land in self.landmarks))
         
     def getSoundFilePath(self):
         return self.sound_file_path
@@ -423,6 +425,8 @@ class Hand():
             f"    gesture='{self.gesture}',\n"
             f"    landmarks_count={landmarks_count},\n"
             f"    sound_file_path='{self.sound_file_path}'\n"
+            f"    landmarks={self.landmarks}\n"
+            f"    origin={self.landmarks_origin}\n"
             f")"
         )
     
@@ -472,27 +476,6 @@ class HandSpeller():
         #print(hand)
         for i, landmarks in enumerate(results.hand_landmarks):
             hand = Hand(side=results.handedness[i][0].category_name, gesture=results.gestures[i][0], landmarks=landmarks)
-            print(hand)
-        
-        width = w
-        height = h
-        
-        #pprint.pprint(f"{results.gestures[0]}", indent=4)
-        #print(type(results.gestures[0]))
-        
-        #for hand in results:
-        #    top_gesture = hand[0]  # [hand][ranking]
-        #    gesture_name = top_gesture.category_name
-        #    gesture_score = top_gesture.score
-        #    label  = top_gesture.handedness
-        #    gesture_landmarks_x = [x for x in top_gesture.landmarks.x]
-        #    gesture_landmarks_y = [y for y in top_gesture.landmarks.y]
-        #    #if label == "Right":
-        #    coords = (int(min(gesture_landmarks_x) * width) + 20, int(min(gesture_landmarks_y) * height) - 20)
-        #    cv.putText(img=image, text=gesture_name, org=coords, fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=0.5, thickness=1, color=(0, 0, 0), lineType = cv.LINE_AA)
-        #
-        #print(f"Top Gesture: {gesture_name}, Score: {gesture_score:.2f}, more info: {top_gesture}\n")
-        #print(f"Top Gesture2: {gesture_name2}, Score: {gesture_score2:.2f}, more info: {top_gesture2}\n")
-        # print(result.gestures[1][0].category_name) # Nos gestos -> Mão esquerda -> Attr do nome
-        # print(result.hand_landmarks[0][6:9]) # Nas landmarks normalizadas -> Landmarks do index finger -> Print de suas coords completas
-        #print(f"All gestures: {result}")
+            x = int((hand.landmarks_origin[0]*w) - 30)
+            y = int((hand.landmarks_origin[1]*h) - 30)
+            cv.putText(img=image, text=hand.gesture, org=(x, y), fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=1, thickness=1, color=(120, 23, 190), lineType = cv.LINE_AA)
