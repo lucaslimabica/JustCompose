@@ -4,7 +4,7 @@
 ![OpenCV](https://img.shields.io/badge/OpenCV-Video%20Processing-red)
 ![MediaPipe](https://img.shields.io/badge/MediaPipe-Hands-orange)
 
-**Total invested time:** `26h40m`
+**Total invested time:** `31h40m`
 
 ## Overview
 

@@ -3,6 +3,10 @@ import cv2 as cv
 import mediapipe as mp
 import pygame
 import database_manager
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+from mediapipe.framework.formats import landmark_pb2
+import pprint
 
 
 class Camera:
@@ -52,7 +56,8 @@ class Camera:
         self.name = name
         self.device = device
         self.compatible_file_types = ('.jpg', '.jpeg', '.png')
-        self.capture_mode = capture_mode 
+        self.capture_mode = capture_mode
+        self.recognizer = HandSpeller(running_mode=vision.RunningMode.IMAGE)
     
     def capture(self):
         """
@@ -84,6 +89,8 @@ class Camera:
         (ESC, 'q', 'l', or window close).
         """       
         image = cv.imread(self.device)
+        w, h = self._get_frame_dimensions(image)
+        self.recognizer.process_image(image, w, h)
         with self.mp_hands.Hands(static_image_mode=True) as hand_detector:
             results = hand_detector.process(cv.cvtColor(image, cv.COLOR_BGR2RGB))
             if results.multi_hand_landmarks:
@@ -98,7 +105,7 @@ class Camera:
                 if cv.getWindowProperty(self.name, cv.WND_PROP_VISIBLE) < 1:
                     break
                 
-            cv.destroyAllWindows()
+        cv.destroyAllWindows()
             
     def _process_video_stream(self):
         """
@@ -388,3 +395,87 @@ class DJ():
         self.mixer.init()
         self.audio_channel = self.mixer.Channel(0)
         self.boing = self.mixer.Sound(self._AUDIO_MOKE_FILE)
+        
+    def play_sound(self, hand):
+        if hand.getSoundFilePath():
+            sound = self.mixer.Sound(hand.getSoundFilePath())
+        else:
+            sound = self.boing
+        self.audio_channel.play(sound)
+        
+class Hand():
+    
+    def __init__(self, side: str, gesture, landmarks: list):
+        self.side = side
+        self.sound_file_path = None
+        self.landmarks = landmarks
+        self.gesture = gesture.category_name
+        self.landmarks_origin = (min(land.x for land in self.landmarks), min(land.y for land in self.landmarks))
+        self.landmarks_end = (max(land.x for land in self.landmarks), max(land.y for land in self.landmarks))
+        
+    def getSoundFilePath(self):
+        return self.sound_file_path
+    
+    def __repr__(self):
+        landmarks_count = len(self.landmarks)
+        
+        return (
+            f"Hand(\n"
+            f"    side='{self.side}',\n"
+            f"    gesture='{self.gesture}',\n"
+            f"    landmarks_count={landmarks_count},\n"
+            f"    sound_file_path='{self.sound_file_path}'\n"
+            f"    landmarks={self.landmarks}\n"
+            f"    origin={self.landmarks_origin}\n"
+            f")"
+        )
+    
+class HandSpeller():
+    """
+    The Gesture Recognizer
+    """
+    _MODEL_PATH = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/gesture_recognizer.task"
+    
+    def __init__(self, model = _MODEL_PATH, running_mode=vision.RunningMode.LIVE_STREAM):
+        """_summary_
+
+        Args:
+            model (_type_, optional): _description_. Defaults to _MODEL_PATH.
+            running_mode (_type_, optional): _description_. Defaults to vision.RunningMode.LIVE_STREAM. 
+            Avaliable modes:
+                - vision.RunningMode.LIVE_STREAM
+                - vision.RunningMode.VIDEO
+                - vision.RunningMode.IMAGE
+        """
+        self.base_options = python.BaseOptions(model_asset_path=model)
+        self.options = vision.GestureRecognizerOptions(base_options=self.base_options, running_mode=running_mode, num_hands=2)
+        self.recognizer = vision.GestureRecognizer.create_from_options(self.options)
+    
+    def process_image(self, image, w, h):
+        """Process a single image and return the recognition result
+        ["None", "Closed_Fist", "Open_Palm", "Pointing_Up", "Thumb_Down", "Thumb_Up", "Victory", "ILoveYou"]
+
+        Args:
+            image (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        image_rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB) # Convert BGR (OpenCV) -> RGB (MediaPipe Image)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
+        
+        # Get the gestures
+        results = self.recognizer.recognize(mp_image)
+        # Each hand will be represented as within an array:
+        # [Category(index=-1, score=0.6321459412574768, display_name='', category_name='Thumb_Up')] <list>
+        
+        if not results.gestures or not results.hand_landmarks:
+            return image, None
+        
+        #hand = Hand(side=results.handedness[0][0].display_name, pose=results.gestures[0][0])
+        #print(hand)
+        for i, landmarks in enumerate(results.hand_landmarks):
+            hand = Hand(side=results.handedness[i][0].category_name, gesture=results.gestures[i][0], landmarks=landmarks)
+            x = int((hand.landmarks_origin[0]*w) - 30)
+            y = int((hand.landmarks_origin[1]*h) - 30)
+            cv.putText(img=image, text=hand.gesture, org=(x, y), fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=1, thickness=1, color=(120, 23, 190), lineType = cv.LINE_AA)
