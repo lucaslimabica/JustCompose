@@ -129,7 +129,7 @@ Exemplo com dois gestos:
 ![alt text](image-6.png)
 
 ```python
-GestureRecognizerResult(
+GestureRecognizerResult( # Atributos dele
     # ==========================================================
     # GESTOS DETECTADOS (Gestures)
     # Lista de gestos, onde o primeiro elemento é a Mão 1 e o segundo é a Mão 2.

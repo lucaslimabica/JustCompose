@@ -397,18 +397,34 @@ class DJ():
         self.boing = self.mixer.Sound(self._AUDIO_MOKE_FILE)
         
     def play_sound(self, hand):
-        sound = self.mixer.Sound(hand.getSoundFilePath())
+        if hand.getSoundFilePath():
+            sound = self.mixer.Sound(hand.getSoundFilePath())
+        else:
+            sound = self.boing
         self.audio_channel.play(sound)
         
 class Hand():
     
-    def __init__(self, side, pose):
+    def __init__(self, side: str, gesture: str, landmarks: list):
         self.side = side
-        self.pose = pose
-        self.sound_file_path
+        self.sound_file_path = None
+        self.landmarks = landmarks
+        self.gesture = gesture
         
     def getSoundFilePath(self):
         return self.sound_file_path
+    
+    def __repr__(self):
+        landmarks_count = len(self.landmarks)
+        
+        return (
+            f"Hand(\n"
+            f"    side='{self.side}',\n"
+            f"    gesture='{self.gesture}',\n"
+            f"    landmarks_count={landmarks_count},\n"
+            f"    sound_file_path='{self.sound_file_path}'\n"
+            f")"
+        )
     
 class HandSpeller():
     """
@@ -450,13 +466,19 @@ class HandSpeller():
         # [Category(index=-1, score=0.6321459412574768, display_name='', category_name='Thumb_Up')] <list>
         
         if not results.gestures or not results.hand_landmarks:
-            return image, None, None
+            return image, None
+        
+        #hand = Hand(side=results.handedness[0][0].display_name, pose=results.gestures[0][0])
+        #print(hand)
+        for i, landmarks in enumerate(results.hand_landmarks):
+            hand = Hand(side=results.handedness[i][0].category_name, gesture=results.gestures[i][0], landmarks=landmarks)
+            print(hand)
         
         width = w
         height = h
         
-        pprint.pprint(f"{results.gestures[0]}", indent=4)
-        print(type(results.gestures[0]))
+        #pprint.pprint(f"{results.gestures[0]}", indent=4)
+        #print(type(results.gestures[0]))
         
         #for hand in results:
         #    top_gesture = hand[0]  # [hand][ranking]
