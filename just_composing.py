@@ -6,6 +6,7 @@ import database_manager
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from mediapipe.framework.formats import landmark_pb2
+import pprint
 
 
 class Camera:
@@ -88,7 +89,8 @@ class Camera:
         (ESC, 'q', 'l', or window close).
         """       
         image = cv.imread(self.device)
-        self.recognizer.process_image(image)
+        w, h = self._get_frame_dimensions(image)
+        self.recognizer.process_image(image, w, h)
         with self.mp_hands.Hands(static_image_mode=True) as hand_detector:
             results = hand_detector.process(cv.cvtColor(image, cv.COLOR_BGR2RGB))
             if results.multi_hand_landmarks:
@@ -429,8 +431,9 @@ class HandSpeller():
         self.options = vision.GestureRecognizerOptions(base_options=self.base_options, running_mode=running_mode, num_hands=2)
         self.recognizer = vision.GestureRecognizer.create_from_options(self.options)
     
-    def process_image(self, image):
+    def process_image(self, image, w, h):
         """Process a single image and return the recognition result
+        ["None", "Closed_Fist", "Open_Palm", "Pointing_Up", "Thumb_Down", "Thumb_Up", "Victory", "ILoveYou"]
 
         Args:
             image (_type_): _description_
@@ -442,22 +445,32 @@ class HandSpeller():
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
         
         # Get the gestures
-        result = self.recognizer.recognize(mp_image)
+        results = self.recognizer.recognize(mp_image)
+        # Each hand will be represented as within an array:
+        # [Category(index=-1, score=0.6321459412574768, display_name='', category_name='Thumb_Up')] <list>
         
-        if not result.gestures or not result.hand_landmarks:
+        if not results.gestures or not results.hand_landmarks:
             return image, None, None
         
+        width = w
+        height = h
         
-        top_gesture = result.gestures[0][0]  # [hand][ranking]
-        gesture_name = top_gesture.category_name
-        gesture_score = top_gesture.score
+        pprint.pprint(f"{results.gestures[0]}", indent=4)
+        print(type(results.gestures[0]))
         
-        top_gesture2 = result.gestures[1][0]  # [hand][ranking]
-        gesture_name2 = top_gesture2.category_name
-        gesture_score2 = top_gesture2.score
-    
-        print(f"Top Gesture: {gesture_name}, Score: {gesture_score:.2f}, more info: {top_gesture}\n")
-        print(f"Top Gesture2: {gesture_name2}, Score: {gesture_score2:.2f}, more info: {top_gesture2}\n")
-        print(result.gestures[1][0].category_name) # Nos gestos -> Mão esquerda -> Attr do nome
-        print(result.hand_landmarks[0][6:9]) # Nas landmarks normalizadas -> Landmarks do index finger -> Print de suas coords completas
+        #for hand in results:
+        #    top_gesture = hand[0]  # [hand][ranking]
+        #    gesture_name = top_gesture.category_name
+        #    gesture_score = top_gesture.score
+        #    label  = top_gesture.handedness
+        #    gesture_landmarks_x = [x for x in top_gesture.landmarks.x]
+        #    gesture_landmarks_y = [y for y in top_gesture.landmarks.y]
+        #    #if label == "Right":
+        #    coords = (int(min(gesture_landmarks_x) * width) + 20, int(min(gesture_landmarks_y) * height) - 20)
+        #    cv.putText(img=image, text=gesture_name, org=coords, fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=0.5, thickness=1, color=(0, 0, 0), lineType = cv.LINE_AA)
+        #
+        #print(f"Top Gesture: {gesture_name}, Score: {gesture_score:.2f}, more info: {top_gesture}\n")
+        #print(f"Top Gesture2: {gesture_name2}, Score: {gesture_score2:.2f}, more info: {top_gesture2}\n")
+        # print(result.gestures[1][0].category_name) # Nos gestos -> Mão esquerda -> Attr do nome
+        # print(result.hand_landmarks[0][6:9]) # Nas landmarks normalizadas -> Landmarks do index finger -> Print de suas coords completas
         #print(f"All gestures: {result}")

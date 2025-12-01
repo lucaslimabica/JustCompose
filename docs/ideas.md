@@ -233,5 +233,18 @@ GestureRecognizerResult(
 Se eu quiser saber o gesto da mão esquerda e as coordenadas do index finger da mão direita:
 ```python
 print(GestureRecognizerResult.gestures[1][0].category_name) # Nos gestos -> Mão esquerda -> Attr do nome
-print(GestureRecognizerResult.hand_landmarks[0][6:9]) # Nas landmarks normalizadas -> Landmarks do index finger -> Print de suas coords completas
+print(GestureRecognizerResult.hand_landmarks[0][6:9]) # Nas landmarks normalizadas -> Mão Direita -> Landmarks do index finger -> Print de suas coords completas
+```
+
+Maniopulando mais ele
+```python
+pprint.pprint(f"{results.gestures}", indent=4)
+# ("[[Category(index=-1, score=0.6321459412574768, display_name='', "
+# "category_name='Thumb_Up')], [Category(index=-1, score=0.7573762536048889, "
+# "display_name='', category_name='Pointing_Up')]]")
+
+pprint.pprint(f"{results.gestures[0]}", indent=4) 
+# ("[Category(index=-1, score=0.6321459412574768, display_name='', category_name='Thumb_Up')]")
+print(type(results.gestures[0])),
+# <class 'list'>
 ```
