@@ -51,7 +51,6 @@ class Camera:
         self.mp_drawing = mp.solutions.drawing_utils
         
         # Class attributes
-        self.dj = DJ()
         self.name = name
         self.device = device
         self.compatible_file_types = ('.jpg', '.jpeg', '.png')
@@ -300,11 +299,11 @@ class DJ():
         self.audio_channel = self.mixer.Channel(0)
         self.boing = self.mixer.Sound(self._AUDIO_MOKE_FILE)
         
-    def play_sound(self, hand):
-        if hand.getSoundFilePath():
-            sound = self.mixer.Sound(hand.getSoundFilePath())
-        else:
-            sound = self.boing
+    def play_sound(self, right_hand, left_hand):
+        #if hand.getSoundFilePath():
+        #    sound = self.mixer.Sound(hand.getSoundFilePath())
+        #else:
+        sound = self.boing
         self.audio_channel.play(sound)
         
 class Hand():
@@ -323,7 +322,9 @@ class Hand():
             max(land.x for land in self.landmarks),
             max(land.y for land in self.landmarks)
         )
-
+    
+    def getSoundFilePath(self):
+        return self.sound_file_path
     
 class HandSpeller():
     """
@@ -339,6 +340,7 @@ class HandSpeller():
             num_hands=2
         )
         self.recognizer = vision.GestureRecognizer.create_from_options(self.options)
+        self.dj = DJ()
     
     def process_image(self, image, w, h):
         """Process a single image (frame ou static) and draw"""
@@ -374,4 +376,17 @@ class HandSpeller():
                 lineType=cv.LINE_AA
             )
 
+        if len(results.handedness) == 2:
+            self.dj.play_sound(Hand(
+                    side=results.handedness[0][0].category_name,
+                    gesture=results.gestures[0][0],  
+                    landmarks=results.hand_landmarks[0]
+                ), Hand(
+                    side=results.handedness[1][0].category_name,
+                    gesture=results.gestures[1][0],  
+                    landmarks=results.hand_landmarks[1]
+                ))
+        
         return image, results
+    
+
