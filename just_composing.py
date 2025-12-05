@@ -46,7 +46,6 @@ class Camera:
                 Defaults to None.
         """
 
-
         # MediaPipe structure
         self.mp_hands = mp.solutions.hands 
         self.mp_drawing = mp.solutions.drawing_utils
@@ -110,48 +109,45 @@ class Camera:
     def _process_video_stream(self):
         """
         Starts the real-time video capture loop for live motion detection.
-
-        Behavior:
-            - Opens a VideoCapture stream (using self.device).
-            - Processes frames in real time, mirroring the feed.
-            - Runs MediaPipe Hands on each frame and calls self._capture_hands().
-            
-        This method blocks until the stream is interrupted (ESC, 'q', 'l', or window close).
-        Resources (VideoCapture, OpenCV windows) are released upon exit.
         """
         with self.mp_hands.Hands() as hand_detector:
-                self.cap = cv.VideoCapture(self.device)
-                if not self.cap.isOpened(): 
-                    print("No video source :(")
-                    return
+            self.cap = cv.VideoCapture(self.device)
+            if not self.cap.isOpened(): 
+                print("No video source :(")
+                return
 
-                while self.cap.isOpened():
-                    ret, frame = self.cap.read()
-                    if not ret:  # frame not captured
-                        print("The video has no frames")
-                        break
+            while self.cap.isOpened():
+                ret, frame = self.cap.read()
+                if not ret:  # frame not captured
+                    print("The video has no frames")
+                    break
 
-                    # Mirror the frame
-                    frame = cv.flip(frame, 1)
-                    # Make detections
-                    results = hand_detector.process(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
-                    if results.multi_hand_landmarks:  # Avoid None for the drawing func
-                        self._capture_hands(frame, results)
+                # Mirror the frame
+                frame = cv.flip(frame, 1)
 
-                    cv.imshow(self.name, frame)
+                # === RECONHECIMENTO DE GESTO (HandSpeller) ===
+                w, h = self._get_frame_dimensions(frame)
+                self.recognizer.process_image(frame, w, h)
+
+                # === MediaPipe Hands “clássico” ===
+                results = hand_detector.process(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
+                if results.multi_hand_landmarks:  # Avoid None for the drawing func
+                    self._capture_hands(frame, results)
+
+                cv.imshow(self.name, frame)
+
+                key = cv.waitKey(1)
+                # Keyboard LEGACY
+                if key in [27, ord("q"), ord("l")]:
+                    break
+                if cv.getWindowProperty(self.name, cv.WND_PROP_VISIBLE) < 1:
+                    break
+
+            # Break of the loop -> Release resources
+            self.cap.release()
+            cv.destroyAllWindows()
+
                     
-                    key = cv.waitKey(1)
-                    # Keyboard LEGACY
-                    if key in [27, ord("q"), ord("l")]:
-                        break
-                    if cv.getWindowProperty(self.name, cv.WND_PROP_VISIBLE) < 1:
-                        break
-                    
-                # Break of the loop -> Release resources
-                self.cap.release()
-                cv.destroyAllWindows()
-        
-                
     def _capture_hands(self, image, results, draw=False):
         """
         Draw hand landmarks, connections, labels, and recognized gestures
@@ -170,34 +166,32 @@ class Camera:
             - Optionally calls `draw_landmark_names` depending on `self.capture_mode`.
             - Calls `recognize_gesture` to try to match the hand against database gestures.
         """
-        for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
-            label = handedness.classification[0].label # classification is a list of all possible classes for the hand, so the 0 is the more accurate one
+        for hand_landmarks, handedness in zip(results.multi_hand_landmarks,
+                                              results.multi_handedness):
+            label = handedness.classification[0].label 
             score = handedness.classification[0].score
-            
-            if draw or self.capture_mode in self._CAPTURE_MODES:
-                if label == "Right":
-                    hand_color = (235, 137, 52)
-                else:
-                    hand_color = (235, 52, 113)
-                score_color = (0, 255, int(255 * (1 - score))) # from yellow to green based on the score
 
-                # Then, draw the landmarks on the frame
+            if label == "Right":
+                hand_color = (235, 137, 52)
+            else:
+                hand_color = (235, 52, 113)
+
+            score_color = (0, 255, int(255 * (1 - score))) 
+
+            if draw:
                 self.mp_drawing.draw_landmarks(
-                    image, 
-                    hand_landmarks, 
+                    image,
+                    hand_landmarks,
                     self.mp_hands.HAND_CONNECTIONS,
-                    self.mp_drawing.DrawingSpec(color=score_color, thickness=1, circle_radius=3),
-                    self.mp_drawing.DrawingSpec(color=hand_color, thickness=1, circle_radius=1)
+                    self.mp_drawing.DrawingSpec(color=hand_color, thickness=2, circle_radius=2),
+                    self.mp_drawing.DrawingSpec(color=hand_color, thickness=2)
                 )
-                # 1º arg: image to draw on
-                # 2º arg: landmarks to draw
-                # 3º arg: the connections between the landmarks
-                # 4º arg: style for the circles (landmarks)
-                # ==========================================================
-            self._draw_landmark_names(image, hand_landmarks, self.capture_mode)
-            self._recognize_gesture(image=image, hand_landmarks=hand_landmarks.landmark, label=label)
+
+            self._draw_landmark_names(image, hand_landmarks)
+            bbox = self._bounding_box(image, hand_landmarks.landmark)
+
             
-    def _draw_landmark_names(self, image, hand_landmarks, mode):
+    def _draw_landmark_names(self, image, hand_landmarks):
         """
         Draw landmark indices or coordinates next to each hand landmark
 
@@ -210,17 +204,17 @@ class Camera:
                 THIS IS THE HAND WITH THE LANDMARKS WITHIN THE ARRAY.
             mode (str):
                 Controls what text is displayed:
-                    - "landmarks"         → only the landmark index (0–20).
+                    - "landmarks"         → only the landmark index (0-20).
                     - "landmarks_coords"  → index + normalized (x, y) coordinates.
         """
-        if mode not in ["landmarks", "landmarks_coords"]:
+        if self.capture_mode not in ["landmarks", "landmarks_coords"]:
             return
         for i, landmark in enumerate(hand_landmarks.landmark): # Iterate over each landmark of the hand
                 # Depending on the capture mode, display differents texts
                 coords = ""
-                if mode == "landmarks_coords":
+                if self.capture_mode == "landmarks_coords":
                     coords = f"{i}: ({landmark.x:.2f}, {landmark.y:.2f})"
-                elif mode == "landmarks":
+                elif self.capture_mode == "landmarks":
                     coords = f"{i}"
                     
                 width, height = self._get_frame_dimensions(image)
@@ -228,7 +222,7 @@ class Camera:
                 py = int(landmark.y * height)
                 cv.putText(img=image, text=coords, org=(px + 30, py), fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=0.5, thickness=1, color=(0, 0, 0), lineType = cv.LINE_AA)
             
-    def _bounding_box(self, image, hand_landmarks, mode) -> tuple:
+    def _bounding_box(self, image, hand_landmarks) -> tuple:
         """
         Draw a bounding box around the hand and return its coordinates
         The bounding box is computed using the min/max of the normalized
@@ -247,124 +241,36 @@ class Camera:
                 - (x1, y1) → top-left corner
                 - (x2, y2) → bottom-right corner
         """
-        width, height = self._get_frame_dimensions(image)
-        xs = [landmark.x for landmark in hand_landmarks]
-        ys = [landmark.y for landmark in hand_landmarks]
-        min_x = min(xs)
-        max_x = max(xs)
-        min_y = min(ys)
-        max_y = max(ys)
-        x1 = int(min_x * width) - 20
-        y1 = int(min_y * height) - 20
-        x2 = int(max_x * width) + 20
-        y2 = int(max_y * height) + 20
-        if mode:
-            cv.rectangle(img=image, pt1=(x1, y1), pt2=(x2, y2), color=(0, 255, 0), thickness=2)
-        return (x1, y1, x2, y2)
-        
-    def _recognize_gesture(self, image, hand_landmarks: list, label: str):
-        """
-        Recognize a gesture for a single hand and draw its name on the image, abocve the bounding box
+        if self.capture_mode == "bounding_box":
+            width, height = self._get_frame_dimensions(image)
+            xs = [landmark.x for landmark in hand_landmarks]
+            ys = [landmark.y for landmark in hand_landmarks]
 
-        Args:
-            image (numpy.ndarray):
-                Current frame (BGR) where the gesture name will be drawn if recognized.
-            hand_landmarks (list):
-                List-like container of MediaPipe `NormalizedLandmark` objects
-                (`hand_landmarks.landmark` from MediaPipe).
-                THIS IS THE HAND, THE ARRAY OF LANDMARKS.
-            label (str):
-                Handedness label returned by MediaPipe, usually `"Right"` or `"Left"`.
+            if not xs or not ys:
+                return None
 
-        Behavior:
-            - Draws a bounding box around the hand.
-            - Loads all gestures and conditions from the database.
-            - Attempts to match the current hand landmarks against each gesture.
-            - If a gesture matches, its name is rendered above the bounding box.
-        """
-        gestures = database_manager.load_all_gestures() # load gestures from the database as dicts
-        hand = self._bounding_box(image, hand_landmarks, mode=self.capture_mode=="bounding_box") # draw bounding box and get its area/coordinates
-        detected = self.recognize_gesture_from_db(hand_landmarks, label, gestures)
-        if detected:
-            cv.putText(image, detected["name"], org=(hand[0], hand[1]-10), fontFace=cv.FONT_HERSHEY_SIMPLEX,fontScale= 1, color=(0,255,0), thickness=2)
-            
-    def condition_is_true(self, hand_landmarks, handedness_label, cond) -> bool:
-        """
-        Evaluate a single gesture condition against the current hand landmarks.
+            x_min = min(xs)
+            x_max = max(xs)
+            y_min = min(ys)
+            y_max = max(ys)
 
-        - If cond["side"] is "left" or "right", the condition only applies to that hand.
-        - If cond["side"] is "any", it applies to both.
-        - Conditions that do NOT apply to the current hand side are treated as satisfied
-          (ignored) so they don't penalize the gesture.
-        """
-        side = cond.get("side", "any").lower()
-        hand = handedness_label.lower()  # "right" or "left"
+            padding = 0.02
+            x_min = max(0.0, x_min - padding)
+            y_min = max(0.0, y_min - padding)
+            x_max = min(1.0, x_max + padding)
+            y_max = min(1.0, y_max + padding)
 
-        if side != "any" and side != hand:
-            return True
+            x1 = int(x_min * width)
+            y1 = int(y_min * height)
+            x2 = int(x_max * width)
+            y2 = int(y_max * height)
 
-        la = hand_landmarks[cond["a"]]
-        lb = hand_landmarks[cond["b"]]
+            cv.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
-        va = getattr(la, cond["axis"])
-        vb = getattr(lb, cond["axis"])
+            return (x1, y1, x2, y2)
+        else:
+            return None
 
-        op = cond["op"]
-
-        if op == "<":
-            return va < vb + self._TOLERANCE_THRESHOLD
-        if op == ">":
-            return va > vb - self._TOLERANCE_THRESHOLD
-        if op == "<=":
-            return va <= vb + self._TOLERANCE_THRESHOLD
-        if op == ">=":
-            return va >= vb - self._TOLERANCE_THRESHOLD
-
-        return False
-
-
-    def recognize_gesture_from_db(self, hand_landmarks, handedness_label, gestures_db):
-        """
-        Match the current hand landmarks against all gestures in the database.
-
-        Args:
-            hand_landmarks (list):
-                List-like container of MediaPipe `NormalizedLandmark` objects
-                REPRESENTING A SINGLE HAND
-            handedness_label (str):
-                Handedness label, `"Right"` or `"Left"`.
-            gestures_db (dict):
-                Dictionary of gestures as loaded from the database. Expected format:
-                {
-                    gesture_id: {
-                        "name": str,
-                        "description": str,
-                        "sound": str,
-                        "conditions": [
-                            {"a": int, "op": str, "b": int, "axis": str, "side": str},
-                            ...
-                        ]
-                    },
-                    ...
-                }
-
-        Returns:
-            dict | None:
-                The first matching gesture dictionary if all its conditions
-                evaluate to True, or None if no gesture matches.
-        """
-        for gid, gesture in gestures_db.items():
-            match = True
-
-            for cond in gesture["conditions"]:
-                if not self.condition_is_true(hand_landmarks, handedness_label, cond):
-                    match = False # condition failed cause its different
-                    break
-
-            if match:
-                return gesture  # found the first matching gesture
-
-        return None
     
     def _get_frame_dimensions(self, image):
         """
@@ -384,6 +290,7 @@ class Camera:
         # Fallback for images (numpy array)
         h, w = image.shape[:2]
         return w, h
+    
     
 class DJ():
     
@@ -409,26 +316,17 @@ class Hand():
         self.side = side
         self.sound_file_path = None
         self.landmarks = landmarks
+        # gesture is a Category from MediaPipe
         self.gesture = gesture.category_name
-        self.landmarks_origin = (min(land.x for land in self.landmarks), min(land.y for land in self.landmarks))
-        self.landmarks_end = (max(land.x for land in self.landmarks), max(land.y for land in self.landmarks))
-        
-    def getSoundFilePath(self):
-        return self.sound_file_path
-    
-    def __repr__(self):
-        landmarks_count = len(self.landmarks)
-        
-        return (
-            f"Hand(\n"
-            f"    side='{self.side}',\n"
-            f"    gesture='{self.gesture}',\n"
-            f"    landmarks_count={landmarks_count},\n"
-            f"    sound_file_path='{self.sound_file_path}'\n"
-            f"    landmarks={self.landmarks}\n"
-            f"    origin={self.landmarks_origin}\n"
-            f")"
+        self.landmarks_origin = (
+            min(land.x for land in self.landmarks),
+            min(land.y for land in self.landmarks)
         )
+        self.landmarks_end = (
+            max(land.x for land in self.landmarks),
+            max(land.y for land in self.landmarks)
+        )
+
     
 class HandSpeller():
     """
@@ -436,46 +334,47 @@ class HandSpeller():
     """
     _MODEL_PATH = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/gesture_recognizer.task"
     
-    def __init__(self, model = _MODEL_PATH, running_mode=vision.RunningMode.LIVE_STREAM):
-        """_summary_
-
-        Args:
-            model (_type_, optional): _description_. Defaults to _MODEL_PATH.
-            running_mode (_type_, optional): _description_. Defaults to vision.RunningMode.LIVE_STREAM. 
-            Avaliable modes:
-                - vision.RunningMode.LIVE_STREAM
-                - vision.RunningMode.VIDEO
-                - vision.RunningMode.IMAGE
-        """
+    def __init__(self, model=_MODEL_PATH, running_mode=vision.RunningMode.IMAGE):
         self.base_options = python.BaseOptions(model_asset_path=model)
-        self.options = vision.GestureRecognizerOptions(base_options=self.base_options, running_mode=running_mode, num_hands=2)
+        self.options = vision.GestureRecognizerOptions(
+            base_options=self.base_options,
+            running_mode=vision.RunningMode.IMAGE,#running_mode,
+            num_hands=2
+        )
         self.recognizer = vision.GestureRecognizer.create_from_options(self.options)
     
     def process_image(self, image, w, h):
-        """Process a single image and return the recognition result
-        ["None", "Closed_Fist", "Open_Palm", "Pointing_Up", "Thumb_Down", "Thumb_Up", "Victory", "ILoveYou"]
-
-        Args:
-            image (_type_): _description_
-
-        Returns:
-            _type_: _description_
-        """
+        """Process a single image (frame ou static) and draw"""
         image_rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB) # Convert BGR (OpenCV) -> RGB (MediaPipe Image)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
         
         # Get the gestures
         results = self.recognizer.recognize(mp_image)
-        # Each hand will be represented as within an array:
-        # [Category(index=-1, score=0.6321459412574768, display_name='', category_name='Thumb_Up')] <list>
-        
+
         if not results.gestures or not results.hand_landmarks:
             return image, None
         
-        #hand = Hand(side=results.handedness[0][0].display_name, pose=results.gestures[0][0])
-        #print(hand)
         for i, landmarks in enumerate(results.hand_landmarks):
-            hand = Hand(side=results.handedness[i][0].category_name, gesture=results.gestures[i][0], landmarks=landmarks)
-            x = int((hand.landmarks_origin[0]*w) - 30)
-            y = int((hand.landmarks_origin[1]*h) - 30)
-            cv.putText(img=image, text=hand.gesture, org=(x, y), fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=1, thickness=1, color=(120, 23, 190), lineType = cv.LINE_AA)
+            gesture_category = results.gestures[i][0]  # Category object
+            hand_side = results.handedness[i][0].category_name
+
+            hand = Hand(
+                side=hand_side,
+                gesture=gesture_category,  # Category
+                landmarks=landmarks
+            )
+
+            x = int((hand.landmarks_origin[0] * w) - 30)
+            y = int((hand.landmarks_origin[1] * h) - 30)
+            cv.putText(
+                img=image,
+                text=hand.gesture,   # gesture.category_name
+                org=(x, y),
+                fontFace=cv.FONT_HERSHEY_SIMPLEX,
+                fontScale=1,
+                thickness=1,
+                color=(120, 23, 190),
+                lineType=cv.LINE_AA
+            )
+
+        return image, results

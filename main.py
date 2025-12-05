@@ -79,7 +79,7 @@ def main():
                     main()
                     
                 if btn_debbug_rect.collidepoint(mouse_pos):
-                    cam = Camera(device="./assets/image-5.png", capture_mode="bounding_box")
+                    cam = Camera(device=0, capture_mode="bounding_box")
                     pygame.display.quit()
                     cam.capture()
                     main()
