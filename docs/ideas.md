@@ -248,3 +248,218 @@ pprint.pprint(f"{results.gestures[0]}", indent=4)
 print(type(results.gestures[0])),
 # <class 'list'>
 ```
+
+Se eu quiser percorrer cada mão do frame eu possof azer isso:
+```python
+base_options = python.BaseOptions(model_asset_path="C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/gesture_recognizer.task")
+options = vision.GestureRecognizerOptions(base_options=base_options, running_mode=running_mode, num_hands=2)
+recognizer = vision.GestureRecognizer.create_from_options(options)
+image_rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB) # Convert BGR (OpenCV) -> RGB (MediaPipe Image)
+#dentro do while de captura de frame:
+while cv.isOpened():
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
+    w, h = 400 # O tamanho do frame
+    
+    # Get the gestures
+    results = recognizer.recognize(mp_image)
+    # Each hand will be represented as within an array:
+    # [Category(index=-1, score=0.6321459412574768, display_name='', category_name='Thumb_Up')] <list>
+    
+    if not results.gestures or not results.hand_landmarks:
+        return image, None
+    
+    for i, landmarks in enumerate(results.hand_landmarks):
+        hand = {
+            "side": results.handedness[i][0].category_name,
+            "gesture": results.gestures[i][0],
+            "landmarks": landmarks
+        }
+        x = int((hand["landmarks_origin"][0]*w) - 30)
+        y = int((hand["landmarks_origin"][1]*h) - 30)
+        cv.putText(img=image, text=hand["gesture"], org=(x, y), fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=1, thickness=1, color=(120, 23, 190), lineType = cv.LINE_AA)
+```
+
+## Como eu fiz no meu código:
+
+### Tenho uma classe para a mão e o detector dela
+```python
+class Hand():
+    
+    def __init__(self, side: str, gesture, landmarks: list):
+        self.side = side
+        self.sound_file_path = None
+        self.landmarks = landmarks
+        self.gesture = gesture.category_name
+        self.landmarks_origin = (min(land.x for land in self.landmarks), min(land.y for land in self.landmarks))
+        self.landmarks_end = (max(land.x for land in self.landmarks), max(land.y for land in self.landmarks))
+        
+    def getSoundFilePath(self):
+        return self.sound_file_path
+    
+    def __repr__(self):
+        landmarks_count = len(self.landmarks)
+        
+        return (
+            f"Hand(\n"
+            f"    side='{self.side}',\n"
+            f"    gesture='{self.gesture}',\n"
+            f"    landmarks_count={landmarks_count},\n"
+            f"    sound_file_path='{self.sound_file_path}'\n"
+            f"    landmarks={self.landmarks}\n"
+            f"    origin={self.landmarks_origin}\n"
+            f")"
+        )
+    
+class HandSpeller():
+    """
+    The Gesture Recognizer
+    """
+    _MODEL_PATH = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/gesture_recognizer.task"
+    
+    def __init__(self, model = _MODEL_PATH, running_mode=vision.RunningMode.LIVE_STREAM):
+        """_summary_
+
+        Args:
+            model (_type_, optional): _description_. Defaults to _MODEL_PATH.
+            running_mode (_type_, optional): _description_. Defaults to vision.RunningMode.LIVE_STREAM. 
+            Avaliable modes:
+                - vision.RunningMode.LIVE_STREAM
+                - vision.RunningMode.VIDEO
+                - vision.RunningMode.IMAGE
+        """
+        self.base_options = python.BaseOptions(model_asset_path=model)
+        self.options = vision.GestureRecognizerOptions(base_options=self.base_options, running_mode=running_mode, num_hands=2)
+        self.recognizer = vision.GestureRecognizer.create_from_options(self.options)
+    
+    def process_image(self, image, w, h):
+        """Process a single image and return the recognition result
+        ["None", "Closed_Fist", "Open_Palm", "Pointing_Up", "Thumb_Down", "Thumb_Up", "Victory", "ILoveYou"]
+
+        Args:
+            image (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        image_rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB) # Convert BGR (OpenCV) -> RGB (MediaPipe Image)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
+        
+        # Get the gestures
+        results = self.recognizer.recognize(mp_image)
+        # Each hand will be represented as within an array:
+        # [Category(index=-1, score=0.6321459412574768, display_name='', category_name='Thumb_Up')] <list>
+        
+        if not results.gestures or not results.hand_landmarks:
+            return image, None
+        
+        #hand = Hand(side=results.handedness[0][0].display_name, pose=results.gestures[0][0])
+        #print(hand)
+        for i, landmarks in enumerate(results.hand_landmarks):
+            hand = Hand(side=results.handedness[i][0].category_name, gesture=results.gestures[i][0], landmarks=landmarks)
+            x = int((hand.landmarks_origin[0]*w) - 30)
+            y = int((hand.landmarks_origin[1]*h) - 30)
+            cv.putText(img=image, text=hand.gesture, org=(x, y), fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=1, thickness=1, color=(120, 23, 190), lineType = cv.LINE_AA)
+
+```
+
+### E no meu loop de processo do frame do OpenCV:
+Tenho uma classe para a câmera que tem os métodos de capturar e dentro dele capturar uma image (ou vídeo ao vivo mas ainda não coloquei, tenho prova amanhã né tropinha)
+```python
+class Camera:
+    """
+    Main camera handler for motion capture and gesture recognition.
+    This class is responsible for:
+    - Capturing frames from a video source (webcam or image file)
+    - Running MediaPipe Hands on each frame
+    - Drawing landmarks, labels, and bounding boxes
+    - Recognizing gestures based on conditions stored in the database
+    """
+    
+    _TOLERANCE_THRESHOLD = 0.02  # Small tolerance for landmark comparisons
+    _CAPTURE_MODES = ["landmarks", "landmarks_coords", "bounding_box"]
+
+    def __init__(self, name="Just Compose Beta", device=0, capture_mode=None):
+        """
+        Initialize the Camera
+
+        Args:
+            name (str, optional):
+                Window title used by OpenCV when displaying the frames.
+                Defaults to "Just Compose Beta".
+            device (int | str, optional):
+                Capture source.
+                - If `int`, it is treated as an OpenCV camera index (0 for default webcam).
+                - If `str` and the path ends with a compatible extension
+                  ('.jpg', '.jpeg', '.png'), it is treated as an image file path.
+                Defaults to 0.
+            capture_mode (str | None, optional):
+                Controls which text overlays are drawn on top of the detected landmarks.
+                Supported values:
+                    - "landmarks"         → draw only the landmark indices
+                    - "landmarks_coords"  → draw landmark indices + normalized coordinates
+                    - "bounding_box"      → draw the bounding box around the hand
+                    - None                → do not draw any landmark labels
+                Defaults to None.
+        """
+
+        # MediaPipe structure
+        self.mp_hands = mp.solutions.hands 
+        self.mp_drawing = mp.solutions.drawing_utils
+        
+        # Class attributes
+        self.dj = DJ()
+        self.name = name
+        self.device = device
+        self.compatible_file_types = ('.jpg', '.jpeg', '.png')
+        self.capture_mode = capture_mode
+        running_mode = vision.RunningMode.LIVE_STREAM if device == 0 else vision.RunningMode.IMAGE
+        self.recognizer = HandSpeller(running_mode=running_mode)    
+    
+    def capture(self):
+        """
+        Initializes the motion capture process based on the configured device.
+        
+        This method acts as a router:
+            - If device is a camera index (int), it delegates to real-time video processing.
+            - If device is an image file path (str), it delegates to static image processing.
+        
+        The delegated process blocks the thread until the window is closed 
+        or a termination key (ESC, 'q', or 'l') is pressed.
+        """
+        if self.device == 0:        
+            self._process_video_stream()
+        elif isinstance(self.device, str) and self.device.endswith(self.compatible_file_types):
+            self._process_image()
+
+   def _process_image(self):
+        """
+        Loads a static image from self.device and performs a single pass of
+        hand detection and gesture recognition.
+        
+        Behavior:
+            - Loads the image using OpenCV.
+            - Runs MediaPipe Hands in static_image_mode=True once.
+            - Draws landmarks and recognized gestures.
+            
+        The resulting image is displayed until a termination key is pressed 
+        (ESC, 'q', 'l', or window close).
+        """       
+        image = cv.imread(self.device)
+        w, h = self._get_frame_dimensions(image)
+        self.recognizer.process_image(image, w, h)
+        with self.mp_hands.Hands(static_image_mode=True) as hand_detector:
+            results = hand_detector.process(cv.cvtColor(image, cv.COLOR_BGR2RGB))
+            if results.multi_hand_landmarks:
+                self._capture_hands(image, results)
+            cv.imshow(self.name, image)
+            
+            while True:
+                key = cv.waitKey(1) 
+                # Keyboard LEGACY
+                if key in [27, ord("q"), ord("l")]:
+                    break
+                if cv.getWindowProperty(self.name, cv.WND_PROP_VISIBLE) < 1:
+                    break
+                
+        cv.destroyAllWindows()
+```
