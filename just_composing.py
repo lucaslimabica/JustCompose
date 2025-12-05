@@ -287,25 +287,6 @@ class Camera:
         h, w = image.shape[:2]
         return w, h
     
-    
-class DJ():
-    
-    _AUDIO_MOKE_FILE = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/assets/boing.mp3"
-    
-    def __init__(self):
-        # Pygame structure
-        self.mixer = pygame.mixer
-        self.mixer.init()
-        self.audio_channel = self.mixer.Channel(0)
-        self.boing = self.mixer.Sound(self._AUDIO_MOKE_FILE)
-        
-    def play_sound(self, right_hand, left_hand):
-        #if hand.getSoundFilePath():
-        #    sound = self.mixer.Sound(hand.getSoundFilePath())
-        #else:
-        sound = self.boing
-        self.audio_channel.play(sound)
-        
 class Hand():
     
     def __init__(self, side: str, gesture, landmarks: list):
@@ -325,6 +306,48 @@ class Hand():
     
     def getSoundFilePath(self):
         return self.sound_file_path
+    
+class DJ():
+    
+    _AUDIO_MOKE_FILE = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/assets/boing.mp3"
+    
+    def __init__(self):
+        # Pygame structure
+        self.mixer = pygame.mixer
+        self.mixer.init()
+        self.audio_channel = self.mixer.Channel(0)
+        self.boing = self.mixer.Sound(self._AUDIO_MOKE_FILE)
+        
+    def play_sound(self, right_hand: Hand, left_hand: Hand):
+        if right_hand.gesture in ["Victory", "I_Love_You", "Open_Palm"] and left_hand.gesture in ["Victory", "ILoveYou", "Open_Palm"]:
+            if right_hand.gesture == "Open_Palm":
+                right_hand_i = 0
+            elif right_hand.gesture == "ILoveYou":
+                right_hand_i = 1
+            else:
+                right_hand_i = 2
+
+            sounds_assets = {
+                "Open_Palm": [
+                    "/assets/drum01.mp3",
+                    "/assets/drum02.mp3",
+                    "/assets/drum03.mp3",
+                ],
+                "ILoveYou": [
+                    "/assets/guitar01.mp3",
+                    "/assets/guitar02.mp3",
+                    "/assets/guitar03.mp3",
+                ],
+                "Victory": [
+                    "/assets/syhnt01.mp3",
+                    "/assets/syhnt02.mp3",
+                    "/assets/syhnt03.mp3",
+                ]
+            }
+            sound_file = f"C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/{sounds_assets[left_hand.gesture][right_hand_i]}"
+            print(sound_file)
+            sound = self.mixer.Sound(sound_file)
+            self.audio_channel.play(sound)
     
 class HandSpeller():
     """
