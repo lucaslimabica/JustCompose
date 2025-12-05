@@ -125,11 +125,9 @@ class Camera:
                 # Mirror the frame
                 frame = cv.flip(frame, 1)
 
-                # === RECONHECIMENTO DE GESTO (HandSpeller) ===
                 w, h = self._get_frame_dimensions(frame)
                 self.recognizer.process_image(frame, w, h)
 
-                # === MediaPipe Hands “clássico” ===
                 results = hand_detector.process(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
                 if results.multi_hand_landmarks:  # Avoid None for the drawing func
                     self._capture_hands(frame, results)
@@ -166,8 +164,7 @@ class Camera:
             - Optionally calls `draw_landmark_names` depending on `self.capture_mode`.
             - Calls `recognize_gesture` to try to match the hand against database gestures.
         """
-        for hand_landmarks, handedness in zip(results.multi_hand_landmarks,
-                                              results.multi_handedness):
+        for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
             label = handedness.classification[0].label 
             score = handedness.classification[0].score
 
