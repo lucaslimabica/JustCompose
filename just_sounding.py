@@ -2,15 +2,7 @@ from moviepy import VideoFileClip
 import os
 
 videos = [
-    "./assets/drum01.mp4",
-    "./assets/drum02.mp4",
-    "./assets/drum03.mp4",
-    "./assets/syhnt01.mp4",
-    "./assets/syhnt02.mp4",
-    "./assets/syhnt03.mp4",
-    "./assets/guitar01.mp4",
-    "./assets/guitar02.mp4",
-    "./assets/guitar03.mp4",
+    "./assets/menu.mp4",
 ]
 
 for path in videos:
