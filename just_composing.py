@@ -381,31 +381,27 @@ class HandSpeller():
         self.dj = DJ()
     
     def process_image(self, image, w, h):
-        """Process a single image (frame ou static) and draw"""
-        image_rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB) # Convert BGR (OpenCV) -> RGB (MediaPipe Image)
+        image_rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
-        
-        # Get the gestures
-        results = self.recognizer.recognize(mp_image)
 
+        results = self.recognizer.recognize(mp_image)
         if not results.gestures or not results.hand_landmarks:
             return image, None
-        
-        for i, landmarks in enumerate(results.hand_landmarks):
-            gesture_category = results.gestures[i][0]  # Category object
-            hand_side = results.handedness[i][0].category_name
 
-            hand = Hand(
-                side=hand_side,
-                gesture=gesture_category,  # Category
-                landmarks=landmarks
-            )
+        hands_by_side = {}
+
+        for i, landmarks in enumerate(results.hand_landmarks):
+            gesture_category = results.gestures[i][0]
+            side = results.handedness[i][0].category_name  # assets to be right and left
+
+            hand = Hand(side=side, gesture=gesture_category, landmarks=landmarks)
+            hands_by_side[side] = hand
 
             x = int((hand.landmarks_origin[0] * w) - 30)
             y = int((hand.landmarks_origin[1] * h) - 30)
             cv.putText(
                 img=image,
-                text=hand.gesture,   # gesture.category_name
+                text=hand.gesture,
                 org=(x, y),
                 fontFace=cv.FONT_HERSHEY_SIMPLEX,
                 fontScale=1,
@@ -414,17 +410,8 @@ class HandSpeller():
                 lineType=cv.LINE_AA
             )
 
-        if len(results.handedness) == 2:
-            self.dj.play_sound(Hand(
-                    side=results.handedness[0][0].category_name,
-                    gesture=results.gestures[0][0],  
-                    landmarks=results.hand_landmarks[0]
-                ), Hand(
-                    side=results.handedness[1][0].category_name,
-                    gesture=results.gestures[1][0],  
-                    landmarks=results.hand_landmarks[1]
-                ))
-        
+        if "Right" in hands_by_side and "Left" in hands_by_side:
+            self.dj.play_sound(hands_by_side["Left"], hands_by_side["Right"]) # Inverted because we flip at the opencv
+
         return image, results
-    
 
