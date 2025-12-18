@@ -7,6 +7,7 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from mediapipe.framework.formats import landmark_pb2
 import pprint
+import time
 
 
 class Camera:
@@ -51,7 +52,6 @@ class Camera:
         self.mp_drawing = mp.solutions.drawing_utils
         
         # Class attributes
-        self.dj = DJ()
         self.name = name
         self.device = device
         self.compatible_file_types = ('.jpg', '.jpeg', '.png')
@@ -125,11 +125,9 @@ class Camera:
                 # Mirror the frame
                 frame = cv.flip(frame, 1)
 
-                # === RECONHECIMENTO DE GESTO (HandSpeller) ===
                 w, h = self._get_frame_dimensions(frame)
                 self.recognizer.process_image(frame, w, h)
 
-                # === MediaPipe Hands “clássico” ===
                 results = hand_detector.process(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
                 if results.multi_hand_landmarks:  # Avoid None for the drawing func
                     self._capture_hands(frame, results)
@@ -166,8 +164,7 @@ class Camera:
             - Optionally calls `draw_landmark_names` depending on `self.capture_mode`.
             - Calls `recognize_gesture` to try to match the hand against database gestures.
         """
-        for hand_landmarks, handedness in zip(results.multi_hand_landmarks,
-                                              results.multi_handedness):
+        for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
             label = handedness.classification[0].label 
             score = handedness.classification[0].score
 
@@ -291,25 +288,6 @@ class Camera:
         h, w = image.shape[:2]
         return w, h
     
-    
-class DJ():
-    
-    _AUDIO_MOKE_FILE = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/assets/boing.mp3"
-    
-    def __init__(self):
-        # Pygame structure
-        self.mixer = pygame.mixer
-        self.mixer.init()
-        self.audio_channel = self.mixer.Channel(0)
-        self.boing = self.mixer.Sound(self._AUDIO_MOKE_FILE)
-        
-    def play_sound(self, hand):
-        if hand.getSoundFilePath():
-            sound = self.mixer.Sound(hand.getSoundFilePath())
-        else:
-            sound = self.boing
-        self.audio_channel.play(sound)
-        
 class Hand():
     
     def __init__(self, side: str, gesture, landmarks: list):
@@ -326,7 +304,65 @@ class Hand():
             max(land.x for land in self.landmarks),
             max(land.y for land in self.landmarks)
         )
+    
+    def getSoundFilePath(self):
+        return self.sound_file_path
+    
+class DJ():
+    
+    _AUDIO_MOKE_FILE = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/assets/boing.mp3"
+    _BASE = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose"
+    
+    def __init__(self):
+        pygame.mixer.init()
+        self.ch = pygame.mixer.Channel(0)
+        self.cooldown_s = 0.18  # to work beyond the frames loops
+        self._last_combo = None
+        self._last_t = 0.0
 
+        self.sounds = {
+            "Open_Palm": [
+                pygame.mixer.Sound(f"{self._BASE}/assets/drum01.mp3"),
+                pygame.mixer.Sound(f"{self._BASE}/assets/drum02.mp3"),
+                pygame.mixer.Sound(f"{self._BASE}/assets/drum03.mp3"),
+            ],
+            "ILoveYou": [
+                pygame.mixer.Sound(f"{self._BASE}/assets/guitar01.mp3"),
+                pygame.mixer.Sound(f"{self._BASE}/assets/guitar02.mp3"),
+                pygame.mixer.Sound(f"{self._BASE}/assets/guitar03.mp3"),
+            ],
+            "Victory": [
+                pygame.mixer.Sound(f"{self._BASE}/assets/syhnt01.mp3"),
+                pygame.mixer.Sound(f"{self._BASE}/assets/syhnt02.mp3"),
+                pygame.mixer.Sound(f"{self._BASE}/assets/syhnt03.mp3"),
+            ],
+        }
+
+    def play_sound(self, right_hand, left_hand):
+        valid = {"Open_Palm", "ILoveYou", "Victory"}
+        # rest, to allow the same sound or just a semibreve rest 
+        if right_hand.gesture == "Closed_Fist" or left_hand.gesture == "Closed_Fist":
+            self._last_combo = None
+            return
+        
+        if right_hand.gesture not in valid or left_hand.gesture not in valid:
+            self._last_combo = None
+            return
+
+        idx = {"Open_Palm": 0, "ILoveYou": 1, "Victory": 2}[right_hand.gesture] # Matching the right hand gesture
+        combo = (left_hand.gesture, idx)
+
+        now = time.time()
+        if combo == self._last_combo:
+            return
+        if now - self._last_t < self.cooldown_s:
+            return
+        if self.ch.get_busy():
+            return
+
+        self._last_combo = combo
+        self._last_t = now
+        self.ch.play(self.sounds[left_hand.gesture][idx])
     
 class HandSpeller():
     """
@@ -342,33 +378,30 @@ class HandSpeller():
             num_hands=2
         )
         self.recognizer = vision.GestureRecognizer.create_from_options(self.options)
+        self.dj = DJ()
     
     def process_image(self, image, w, h):
-        """Process a single image (frame ou static) and draw"""
-        image_rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB) # Convert BGR (OpenCV) -> RGB (MediaPipe Image)
+        image_rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
-        
-        # Get the gestures
-        results = self.recognizer.recognize(mp_image)
 
+        results = self.recognizer.recognize(mp_image)
         if not results.gestures or not results.hand_landmarks:
             return image, None
-        
-        for i, landmarks in enumerate(results.hand_landmarks):
-            gesture_category = results.gestures[i][0]  # Category object
-            hand_side = results.handedness[i][0].category_name
 
-            hand = Hand(
-                side=hand_side,
-                gesture=gesture_category,  # Category
-                landmarks=landmarks
-            )
+        hands_by_side = {}
+
+        for i, landmarks in enumerate(results.hand_landmarks):
+            gesture_category = results.gestures[i][0]
+            side = results.handedness[i][0].category_name  # assets to be right and left
+
+            hand = Hand(side=side, gesture=gesture_category, landmarks=landmarks)
+            hands_by_side[side] = hand
 
             x = int((hand.landmarks_origin[0] * w) - 30)
             y = int((hand.landmarks_origin[1] * h) - 30)
             cv.putText(
                 img=image,
-                text=hand.gesture,   # gesture.category_name
+                text=hand.gesture,
                 org=(x, y),
                 fontFace=cv.FONT_HERSHEY_SIMPLEX,
                 fontScale=1,
@@ -377,4 +410,8 @@ class HandSpeller():
                 lineType=cv.LINE_AA
             )
 
+        if "Right" in hands_by_side and "Left" in hands_by_side:
+            self.dj.play_sound(hands_by_side["Left"], hands_by_side["Right"]) # Inverted because we flip at the opencv
+
         return image, results
+
