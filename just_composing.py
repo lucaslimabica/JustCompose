@@ -7,6 +7,7 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from mediapipe.framework.formats import landmark_pb2
 import pprint
+import time
 
 
 class Camera:
@@ -310,44 +311,58 @@ class Hand():
 class DJ():
     
     _AUDIO_MOKE_FILE = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/assets/boing.mp3"
+    _BASE = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose"
     
     def __init__(self):
-        # Pygame structure
-        self.mixer = pygame.mixer
-        self.mixer.init()
-        self.audio_channel = self.mixer.Channel(0)
-        self.boing = self.mixer.Sound(self._AUDIO_MOKE_FILE)
-        
-    def play_sound(self, right_hand: Hand, left_hand: Hand):
-        if right_hand.gesture in ["Victory", "I_Love_You", "Open_Palm"] and left_hand.gesture in ["Victory", "ILoveYou", "Open_Palm"]:
-            if right_hand.gesture == "Open_Palm":
-                right_hand_i = 0
-            elif right_hand.gesture == "ILoveYou":
-                right_hand_i = 1
-            else:
-                right_hand_i = 2
+        pygame.mixer.init()
+        self.ch = pygame.mixer.Channel(0)
+        self.cooldown_s = 0.18  # to work beyond the frames loops
+        self._last_combo = None
+        self._last_t = 0.0
 
-            sounds_assets = {
-                "Open_Palm": [
-                    "/assets/drum01.mp3",
-                    "/assets/drum02.mp3",
-                    "/assets/drum03.mp3",
-                ],
-                "ILoveYou": [
-                    "/assets/guitar01.mp3",
-                    "/assets/guitar02.mp3",
-                    "/assets/guitar03.mp3",
-                ],
-                "Victory": [
-                    "/assets/syhnt01.mp3",
-                    "/assets/syhnt02.mp3",
-                    "/assets/syhnt03.mp3",
-                ]
-            }
-            sound_file = f"C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/{sounds_assets[left_hand.gesture][right_hand_i]}"
-            print(sound_file)
-            sound = self.mixer.Sound(sound_file)
-            self.audio_channel.play(sound)
+        self.sounds = {
+            "Open_Palm": [
+                pygame.mixer.Sound(f"{self._BASE}/assets/drum01.mp3"),
+                pygame.mixer.Sound(f"{self._BASE}/assets/drum02.mp3"),
+                pygame.mixer.Sound(f"{self._BASE}/assets/drum03.mp3"),
+            ],
+            "ILoveYou": [
+                pygame.mixer.Sound(f"{self._BASE}/assets/guitar01.mp3"),
+                pygame.mixer.Sound(f"{self._BASE}/assets/guitar02.mp3"),
+                pygame.mixer.Sound(f"{self._BASE}/assets/guitar03.mp3"),
+            ],
+            "Victory": [
+                pygame.mixer.Sound(f"{self._BASE}/assets/syhnt01.mp3"),
+                pygame.mixer.Sound(f"{self._BASE}/assets/syhnt02.mp3"),
+                pygame.mixer.Sound(f"{self._BASE}/assets/syhnt03.mp3"),
+            ],
+        }
+
+    def play_sound(self, right_hand, left_hand):
+        valid = {"Open_Palm", "ILoveYou", "Victory"}
+        # rest, to allow the same sound or just a semibreve rest 
+        if right_hand.gesture == "Closed_Fist" or left_hand.gesture == "Closed_Fist":
+            self._last_combo = None
+            return
+        
+        if right_hand.gesture not in valid or left_hand.gesture not in valid:
+            self._last_combo = None
+            return
+
+        idx = {"Open_Palm": 0, "ILoveYou": 1, "Victory": 2}[right_hand.gesture] # Matching the right hand gesture
+        combo = (left_hand.gesture, idx)
+
+        now = time.time()
+        if combo == self._last_combo:
+            return
+        if now - self._last_t < self.cooldown_s:
+            return
+        if self.ch.get_busy():
+            return
+
+        self._last_combo = combo
+        self._last_t = now
+        self.ch.play(self.sounds[left_hand.gesture][idx])
     
 class HandSpeller():
     """
