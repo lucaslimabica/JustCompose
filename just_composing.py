@@ -328,24 +328,6 @@ class DJ():
         self.cooldown_s = 0.18
         self._last_combo = None
         self._last_t = 0.0
-
-        self.sounds = {
-            "Open_Palm": [
-                pygame.mixer.Sound(f"{self._BASE}/assets/drum01.mp3"),
-                pygame.mixer.Sound(f"{self._BASE}/assets/drum02.mp3"),
-                pygame.mixer.Sound(f"{self._BASE}/assets/drum03.mp3"),
-            ],
-            "ILoveYou": [
-                pygame.mixer.Sound(f"{self._BASE}/assets/guitar01.mp3"),
-                pygame.mixer.Sound(f"{self._BASE}/assets/guitar02.mp3"),
-                pygame.mixer.Sound(f"{self._BASE}/assets/guitar03.mp3"),
-            ],
-            "Victory": [
-                pygame.mixer.Sound(f"{self._BASE}/assets/syhnt01.mp3"),
-                pygame.mixer.Sound(f"{self._BASE}/assets/syhnt02.mp3"),
-                pygame.mixer.Sound(f"{self._BASE}/assets/syhnt03.mp3"),
-            ],
-        }
         
         self.programs = {
             "Open_Palm": 0, # Pian
@@ -362,34 +344,8 @@ class DJ():
             "Pointing_Up": 64, # E4 Mi
             "Thumb_Up": 65 # F4 Fá
         }
-
-    def play_sound2(self, right_hand, left_hand):
-        valid = {"Open_Palm", "ILoveYou", "Victory"}
-        # rest, to allow the same sound or just a semibreve rest 
-        if right_hand.gesture == "Closed_Fist" or left_hand.gesture == "Closed_Fist":
-            self._last_combo = None
-            return
         
-        if right_hand.gesture not in valid or left_hand.gesture not in valid:
-            self._last_combo = None
-            return
-
-        idx = {"Open_Palm": 0, "ILoveYou": 1, "Victory": 2}[right_hand.gesture] # Matching the right hand gesture
-        combo = (left_hand.gesture, idx)
-
-        now = time.time()
-        if combo == self._last_combo:
-            return
-        if now - self._last_t < self.cooldown_s:
-            return
-        if self.ch.get_busy():
-            return
-
-        self._last_combo = combo
-        self._last_t = now
-        self.ch.play(self.sounds[left_hand.gesture][idx])
-        
-    def _play_note(self, ch, prog, note, vel=127, dur=1, bank=0):
+    def _play_note(self, ch, prog, note, vel=127, dur=0.74, bank=0):
         self._fs.program_select(ch, self._sfid, bank, prog)
         self._fs.noteon(ch, note, vel)
         time.sleep(dur)
@@ -408,8 +364,21 @@ class DJ():
         
         program = self.programs[left_hand.gesture]
         note = self.notes[right_hand.gesture]
+        
+        # No reapet logic
+        combo = (program, note)
+        now = time.time()
+        if combo == self._last_combo:
+            return
+        if now - self._last_t < self.cooldown_s:
+            return
+        if self.ch.get_busy():
+            return
+        self._last_combo = combo
+        self._last_t = now
+        
         self._play_note(0, prog=program, note=note)
-    
+        
 class HandSpeller():
     """
     The Gesture Recognizer
