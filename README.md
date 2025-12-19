@@ -1,38 +1,9 @@
-# 🎵 JustCompose Work in Progress
-![Status](https://img.shields.io/badge/status-WIP-yellow)
-![Python](https://img.shields.io/badge/Python-3.10+-blue)
-![OpenCV](https://img.shields.io/badge/OpenCV-Video%20Processing-red)
-![MediaPipe](https://img.shields.io/badge/MediaPipe-Hands-orange)
+📦 System Overview
 
-**Total invested time:** `31h40m`
-
-## Overview
-
-**JustCompose** is a gesture-controlled musical engine powered by **OpenCV** and **MediaPipe Hands**.
-It interprets hand landmarks, gestures, angles, distances, and spatial relationships to trigger real-time musical interactions, turning you into a MUSICIAN MAGICIAN.
-
-## 📚 **Table of Contents**
-- [📦 System Overview](#-system-overview)
-- [📸 How The Capture Works](#-how-the-capture-works)
-- [✋ How MediaPipe Returns a Detected Hand](#-how-mediapipe-returns-a-detected-hand)
-  - [`multi_hand_landmarks`](#multi_hand_landmarks)
-  - [`multi_handedness`](#-multi_handedness)
-  - [`multi_hand_world_landmarks`](#-multi_hand_world_landmarks-real-world-3d-coordinates)
-- [🎯 Visual Processing Milestones](-#milestones)
-  - [Draw Landmarks](#-draw-landmarks)
-  - [Draw Bounding Boxes](#-draw-bounding-boxes)
-- [🗄️ The Database Structure](#-the-database-structure)
-  - [`gesture` Table](#-table-gesture)
-  - [`gesture_condition` Table](#-table-gesture_condition)
-  - [How Conditions Work](#-how-conditions-work)
-  - [Final Combined Data Structure](#-final-combined-data-structure)
-
-
-## 📦 System Overview
-
-**JustCompose is different, it's _spicy_**. Gestures, rules, and interactions are **data-driven**, stored in a database, interpreted dynamically at runtime, and completely independent of the camera resolution.
+**JustCompose is different, it's *spicy***. Gestures, rules, and interactions are **data-driven**, stored in a database, interpreted dynamically at runtime, and completely independent of the camera resolution.
 
 Processing pipeline:
+
 1. Capture video using **OpenCV**
 2. Detect hands using **MediaPipe**
 3. Extract 21 3D landmarks
@@ -42,21 +13,76 @@ Processing pipeline:
 ## 📸 How The Capture Works
 
 OpenCV captures frames in a continuous loop:
-frame (OpenCV) → detect (MediaPipe) → draw & process (MediaPipe and JustCompose Built-in Methods) → next frame
+**frame (OpenCV)** → **detect (MediaPipe)** → **draw & process (MediaPipe + JustCompose methods)** → **next frame**
+
+## The Libraries Behind JustCompose
+
+This project is basically a “real-time pipeline” connecting **computer vision** to **audio synthesis**. Below is how each library fits into that pipeline, what it gives you, and what tradeoffs it brings.
+
+## 🟦 OpenCV (cv2): Real-Time Frames, Timing, and Pixel Space
+
+OpenCV is your **frame clock**. It is responsible for:
+
+* Opening the webcam feed (`cv.VideoCapture`)
+* Providing the next frame (`cap.read()`)
+* Handling window display (`cv.imshow`)
+* Handling loop timing and exit keys (`cv.waitKey`)
+* Allowing you to draw text, shapes, overlays, bounding boxes (UI/feedback)
+
+### Why OpenCV matters in this project
+
+MediaPipe will give you landmarks in **normalized space** (0–1), but your UI overlays live in **pixel space**. OpenCV is what connects:
+
+* normalized landmark `(x, y)` → pixel `(px, py)` for drawing
+* frame timing → audio timing decisions (cooldowns, debouncing)
+
+### The “frame loop” contract
+
+Real-time systems depend on one golden rule:
+
+> **Never block the frame loop.**
+> If you block, you drop frames and recognition becomes unstable.
+
+That’s why in the audio part you avoided `time.sleep()` and used a `Timer` for note-off: it preserves the frame loop performance.
+
+## 🟩 MediaPipe Hands + Gesture Recognizer: Hand Tracking + Gesture Labels
+
+MediaPipe brings two major things:
+
+1. **Hand landmark tracking**
+2. **Gesture classification** (from a trained model)
+
+In your code you use both:
+
+* `mp.solutions.hands.Hands()` (classic landmark detector)
+* `mediapipe.tasks.python.vision.GestureRecognizer` (gesture model in `.task`)
+
+This is important: **these are two different APIs**.
+
+* The `mp.solutions.hands` API returns `results.multi_hand_landmarks` and `results.multi_handedness`
+* The `GestureRecognizer` returns a `GestureRecognizerResult` (gestures + handedness + landmarks in its own structure)
+
+You’re essentially merging the best of both worlds:
+
+* MediaPipe classic pipeline for stable detection + drawing
+* GestureRecognizer for “semantic” gesture name output like `Open_Palm`, `Victory`, etc
+
 
 ## ✋ How MediaPipe Returns a Detected Hand
 
 The MediaPipe's hand object is storaged at the `results` variable.
 The object has these three attributtes:
 
-- multi_hand_landmarks
-- multi_handedness
-- multi_hand_world_landmarks
+* multi_hand_landmarks
+* multi_handedness
+* multi_hand_world_landmarks
+* gesture
 
 ### multi_hand_landmarks
-| Attribute              | Type                 | Description                      |                                           
-| ---------------------- | -------------------- | -------------------------------- | 
-| `multi_hand_landmarks` | `List[LandmarkList]` | Up to 2 hands, 21 landmarks each |  
+
+| Attribute              | Type                 | Description                      |
+| ---------------------- | -------------------- | -------------------------------- |
+| `multi_hand_landmarks` | `List[LandmarkList]` | Up to 2 hands, 21 landmarks each |
 
 Each entry in multi_hand_landmarks represents one hand.
 Inside each LandmarkList, there are 21 Landmark objects with normalized coordinates
@@ -97,9 +123,9 @@ This is the **most important** attribute. It contains 21 3D normalized landmarks
 This attribute provides the classification (“Left” or “Right”) for every detected hand.
 It **matches the order** of `multi_hand_landmarks`.
 
-| Attribute          | Type                       | Description                                      | 
-| ------------------ | -------------------------- | ------------------------------------------------ | 
-| `multi_handedness` | `List[ClassificationList]` | Classification for each hand: “Left” or “Right”. | 
+| Attribute          | Type                       | Description                                      |
+| ------------------ | -------------------------- | ------------------------------------------------ |
+| `multi_handedness` | `List[ClassificationList]` | Classification for each hand: “Left” or “Right”. |
 
 #### 🔸 Accessing the Hand Label
 
@@ -126,156 +152,153 @@ This attribute provides **true 3D coordinates (in meters)** relative to the wris
 | ---------------------------- | -------------------- | ----------------------------------------------------------------------------------------- |
 | `multi_hand_world_landmarks` | `List[LandmarkList]` | Landmarks in realistic 3D space, unaffected by image scaling or distance from the camera. |
 
------
 
-## Milestones
+### `gesture` How this was worked with the `Hand` class  
 
-### 🎯 Draw Landmarks
+While MediaPipe provides raw lists of coordinates and labels, our system needs a more organized way to handle this data in real-time. The `Hand` class acts as a **High-Level Abstraction Layer** that transforms raw detection results into a functional object for the musical engine.
 
-The `draw_landmarks` step is responsible for rendering the detected hands on the frame using MediaPipe’s landmarks:
+### Why is this class crucial?
 
-- Iterates over each detected hand and its corresponding handedness (`Left` / `Right`).
-- Colors are used to visually distinguish hands:
-  - **Right hand** → `RGB(235, 137, 52)`
-  - **Left hand** → `RGB(235, 52, 113)`
-- A **confidence-based color** is also computed for the landmarks (`score_color`), transitioning from yellow to green depending on the detection score.
-- Uses `mp_drawing.draw_landmarks(...)` to draw:
-  - the 21 hand landmarks,
-  - the connections between them,
-  - custom styles for points and lines.
+The `Hand` class is the backbone of the **Just Compose** logic for three main reasons:
 
-On top of that, `draw_landmarks` also calls:
+1. **State Management:** It bundles the side (Left/Right), the semantic gesture (e.g., "Victory"), and the physical landmarks into a single "Source of Truth." This prevents synchronization errors when processing multiple hands.
+2. **Spatial Awareness (Bounding Boxes):** The class automatically calculates `landmarks_origin` and `landmarks_end`. This allows the system to know exactly where the hand is in the frame, enabling features like dynamic UI overlays and proximity-based effects.
+3. **Semantic Mapping:** It converts MediaPipe's `Category` objects into simple strings. This makes the musical logic (deciding which note to play) much more readable and easier to maintain.
 
-- `draw_landmark_names(...)` → optionally draws the landmark index or coordinates next to each point, depending on the current `capture_mode` (useful for debugging and gesture design).
-- `draw_bounding_box(...)` → draws a bounding box around the hand based on key landmarks.
+### Conceptual Workflow
 
-![Landmarks](./docs/image.png)
-
-This milestone provides a **clear visual representation of the hand pose**, making it easier to reason about gestures and interactions.
-
-### 🟩 Draw Bounding Boxes
-
-The `draw_bounding_box` step computes and draws a rough bounding box around the detected hand:
-
-- Converts the normalized landmark coordinates (from MediaPipe) into pixel coordinates using the current frame size.
-- Uses the most left, right, top and bottom landmarks as reference points:
-- Builds a rectangle from these landmarks and adds a small padding (`± 20px`) to avoid a tight crop.
-- Draws the final box with `cv.rectangle(...)` in green.
-
-This milestone is the basis for:
-
-- **Region-of-interest processing**
-- **Gesture-based UI elements**
-- Future features like cropping the hand area, tracking, or triggering effects when the hand enters a certain region.
-
-![Landmarks with Bounding Box](./docs/landmarks_with_bb.png)
-
----
-
-## 🗄️ The Database Structure
-This section describes the database schema used to store, configure, and recognize custom hand gestures for motion capture and real-time interaction.
-The system is built on **two relational tables**:
-
-* `gestures` → High-level metadata
-* `gesture_conditions` → Booleans landmark-based constraints
-
-This structure allows gestures to be **fully data-driven**, editable without modifying code, and easily expandable.
-
-### 🧩 Table: `gesture`
-
-The `gesture` table stores descriptive and functional information about each gesture.
-
-| Field         | Type    | Description                                                | Example                      |
-| ------------- | ------- | ---------------------------------------------------------- | ---------------------------- |
-| `id`          | Integer | Primary key, unique identifier for the gesture             | `1`                          |
-| `name`        | String  | Human-readable name of the gesture                         | `'Number One'`               |
-| `description` | Text    | Explanation of what the gesture represents or how it looks | `'Index finger pointing up'` |
-| `sound_file`  | String  | Relative path to the audio triggered on recognition        | `'./assets/boing.mp3'`       |
-
-### Example record
+1. **Detection:** MediaPipe identifies 21 landmarks.
+2. **Extraction:** We extract the label (handedness) and the gesture name.
+3. **Encapsulation:** The `Hand` class is instantiated, calculating the hand's boundaries in the 2D space.
+4. **Action:** The DJ/Synthesizer queries the `Hand` object to trigger sounds.
 
 ```python
-{
-  'id': 1,
-  'name': 'Number One',
-  'description': 'Index finger pointing up gesture',
-  'sound_file': './assets/boing.mp3'
-}
-```
+# Conceptual usage in our main loop
+current_hand = Hand(side="Right", gesture=mp_gesture, landmarks=mp_landmarks)
 
-### 🧠 Table: `gesture_condition`
-
-The `gesture_conditions` table defines the **mathematical rules** that must hold true for a gesture to be considered recognized.
-Each row corresponds to **one Boolean condition** derived from MediaPipe’s 21 normalized hand landmarks.
-
-| Field        | Type    | Description                                                          | Example         |
-| ------------ | ------- | -------------------------------------------------------------------- | --------------- |
-| `id`         | Integer | Primary key for the condition                                        | `1`             |
-| `gesture_id` | Integer | Foreign key → links to the `gestures` table                          | `1`             |
-| `landmark_a` | Integer | MediaPipe landmark ID (0–20), first operand                          | `8` (Index tip) |
-| `operator`   | String  | Comparison operator (`<`, `>`, `<=`, `>=`, `==`)                     | `'<'`           |
-| `landmark_b` | Integer | MediaPipe landmark ID used as the second operand                     | `6` (Index PIP) |
-| `axis`       | String  | Axis to compare: `'x'`, `'y'`, `'z'`                                 | `'y'`           |
-| `hand_side`  | String  | Which hand the condition applies to: `'left'`, `'right'`, or `'any'` | `'any'`         |
-
-#### Example rows (gesture “Number One”)
+print(f"Hand: {current_hand.side} | Gesture: {current_hand.gesture}")
+# Output: Hand: Right | Gesture: Open_Palm
 
 ```
-gesture_id, a, op, b, axis, hand_side, description
-1,8,<,6,y,any,Index tip (8) is above PIP (6)
-1,7,<,6,y,any,Index DIP (7) is above PIP (6)
-1,6,<,5,y,any,Index PIP (6) is above MCP (5)
-1,4,>,6,y,any,Thumb tip (4) is below PIP (6)
-1,12,>,9,y,any,Middle finger folded
-1,16,>,13,y,any,Ring finger folded
-1,20,>,17,y,any,Pinky finger folded
-1,4,>,6,x,right,Right hand → thumb right of index base
-1,4,<,6,x,left,Left hand → thumb left of index base
-```
 
-### 🧮 How Conditions Work
+### Key Attributes Breakdown
 
-A condition such as:
+| Attribute | Logic Source | Importance |
+| --- | --- | --- |
+| `side` | `multi_handedness` | Determines if the hand controls the **Instrument** (Left) or the **Note** (Right). |
+| `gesture` | `GestureRecognizer` | The trigger for specific musical events or commands. |
+| `landmarks` | `multi_hand_landmarks` | Used for drawing and precise spatial calculations. |
+| `landmarks_origin/end` | Calculated (Min/Max) | Defines the "Hitbox" of the hand for visual feedback. |
 
-```
-8.y < 6.y
-```
 
-Means:
+## 🎛️ FluidSynth + SoundFont (.sf2): Real Instruments Without Audio Files
 
-> The Y-coordinate of landmark 8 (index fingertip) must be **less than** the Y-coordinate of landmark 6 (index PIP joint).
-> Since Y decreases upward in MediaPipe, this confirms the **index finger is extended upwards**.
+This is the part that makes JustCompose feel like a real instrument.
 
-This representation allows gestures to be defined entirely through **mathematical relationships** in 3D space.
+### What FluidSynth does
 
-## 🔗 Final Combined Data Structure
+FluidSynth is a software synthesizer that:
 
-When loaded from the database and connected inside the gesture recognizer, all conditions belonging to a gesture are grouped under the same ID:
+* loads a **SoundFont (.sf2)** with sampled instruments
+* accepts **MIDI events** (note on/off, program change)
+* produces audio in real time
 
-```python
-{
-  1: {
-    'name': 'Number One',
-    'description': 'Index finger pointing up gesture',
-    'sound': './assets/boing.mp3',
-    'conditions': [
-        {'a': 8, 'op': '<', 'b': 6, 'axis': 'y', 'side': 'any'},
-        {'a': 7, 'op': '<', 'b': 6, 'axis': 'y', 'side': 'any'},
-        {'a': 6, 'op': '<', 'b': 5, 'axis': 'y', 'side': 'any'},
-        {'a': 4, 'op': '>', 'b': 6, 'axis': 'y', 'side': 'any'},
-        {'a': 12, 'op': '>', 9, 'axis': 'y', 'side': 'any'},
-        {'a': 16, 'op': '>', 13, 'axis': 'y', 'side': 'any'},
-        {'a': 20, 'op': '>', 17, 'axis': 'y', 'side': 'any'},
-        {'a': 4, 'op': '>', 'b': 6, 'axis': 'x', 'side': 'right'},
-        {'a': 4, 'op': '<', 'b': 6, 'axis': 'x', 'side': 'left'}
-    ]
-  }
-}
-```
+### Why SoundFonts are great for this project
 
-This unified structure enables the recognizer to:
+* You don’t need a folder full of `.mp3` assets
+* You can switch instruments instantly using GM programs
+* Notes are deterministic: if the same gesture happens, the same sound happens
 
-1. Load gestures dynamically
-2. Validate all conditions for each gesture
-3. Trigger the associated action immediately
+### How your DJ uses it
+
+In your project:
+
+* **Left hand gesture → GM program (instrument)**
+* **Right hand gesture → MIDI note (pitch)**
+* `Closed_Fist` acts like a rest/pause and resets the “repeat lock”
+
+Key calls:
+
+* `sfload(sf2_path)` loads the bank
+* `program_select(channel, sfid, bank, program)` chooses the instrument
+* `noteon(channel, note, velocity)` starts sound
+* `noteoff(channel, note)` stops sound
+
+Your use of `Timer(dur, ...)` is a very important architecture choice:
+
+* you keep the video loop non-blocking
+* you still schedule note release correctly
+
+
+## 🟨 Pygame: Audio State + Channel Management
+
+Even though you switched to FluidSynth for real instruments, you still benefit from `pygame.mixer` because it gives you:
+
+* a simple audio init on Windows
+* a channel object with `.get_busy()` to prevent overlapping spam
+
+In your `DJ` class, `self.ch.get_busy()` is essentially a “do I already have a note playing?” guard. Combined with cooldown + combo memory, this prevents the system from sounding chaotic in high FPS.
+
+## 📀 Recording Audio: Why You Record “Generated Audio” Instead of System Audio
+
+Windows system audio capture is painful (drivers, loopback devices, channel mismatch). Your project took the smarter route:
+
+> **Record the audio you generate**, at the exact moment you generate it.
+
+In your `_play_note`, when recording is enabled:
+
+* you ask FluidSynth for samples (`get_samples`)
+* convert them to `int16`
+* write into a `.wav` file
+
+### A Quick Deep Dive in How this Recording Buffer Works
+
+When you trigger a gesture, the code executes a real-time audio "cloning" process. Let's break down the logic behind those four lines of code:
+
+#### Digital Extraction: `self._fs.get_samples(frames_to_generate)`
+
+Instead of recording through a microphone (which would capture background noise), we tap directly into the FluidSynth engine.
+
+* `get_samples` asks the synthesizer: *"Hey, if you were to play this note right now, what would the raw mathematical wave look like?"*
+* This returns raw floating-point numbers representing the sound wave.
+
+#### Data Formatting: `np.int16(samples)`
+
+Raw audio from synthesizers usually comes in `float32` (high precision decimals). However, the standard `.wav` format (PCM) expected by most players uses **16-bit Integers**.
+
+* We use **NumPy** to perform a high-speed conversion of every single one of those ~32k samples.
+* This makes the file compatible with any media player (VLC, Spotify, etc.) and keeps the file size optimized.
+
+#### Storage: `writeframes(s16.tobytes())`
+
+Finally, we convert the numeric array into raw **Binary Data (bytes)**.
+
+* This is the moment the sound "leaves" the computer's RAM and is permanently etched onto the disk
+* By doing this inside `_play_note`, your recording grows dynamically: every gesture adds a new "block" of sound to the file
+
+## 🧱 Architecture: Why Classes Matter Here
+
+### `Camera`
+
+Owns the real-time loop and the frame lifecycle.
+
+### `HandSpeller`
+
+Owns semantic interpretation:
+
+* gesture recognition
+* UI overlays (text + icons)
+* “hands_by_side” state, decoupled from frame resolution
+
+### `DJ`
+
+Owns audio rules:
+
+* mapping gestures → program/note
+* debounce logic (cooldown)
+* rest logic
+* optional audio recording
+
+
+
 

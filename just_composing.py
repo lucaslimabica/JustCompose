@@ -382,12 +382,14 @@ class DJ():
         """
         self._fs.program_select(ch, self._sfid, bank, prog)
         self._fs.noteon(ch, note, vel)
+        
         if hasattr(self, 'is_recording_audio') and self.is_recording_audio:
             # samples from the note
             frames_to_generate = int(44100 * dur)
             samples = self._fs.get_samples(frames_to_generate)
             s16 = np.int16(samples)
             self.recording_file.writeframes(s16.tobytes())
+            
         Timer(dur, lambda: self._fs.noteoff(ch, note)).start() # Making a queue of notes
             
     def play_sound(self, right_hand, left_hand):

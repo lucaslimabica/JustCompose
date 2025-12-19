@@ -108,13 +108,15 @@ class StudioCamera(Camera):
         """
         with self.mp_hands.Hands() as hand_detector:
             self.cap = cv.VideoCapture(self.device)
-            if not self.cap.isOpened(): return
+            if not self.cap.isOpened():
+                return
 
             dj = self.recognizer.dj
             
             while self.cap.isOpened():
                 ret, frame = self.cap.read()
-                if not ret: break
+                if not ret:
+                    break
 
                 frame = cv.flip(frame, 1)
                 w, h = self._get_frame_dimensions(frame)
@@ -138,7 +140,8 @@ class StudioCamera(Camera):
                                cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
                 cv.imshow(self.name, frame)
-                if cv.waitKey(1) in [27, ord("q")]: break
+                if cv.waitKey(1) in [27, ord("q")]:
+                    break
             
             if self.is_recording_audio:
                 dj.stop_recording()
