@@ -322,7 +322,7 @@ class DJ():
         # FluidS
         self._fs = fluidsynth.Synth()
         self._fs.start(driver="dsound")
-        self._sfid = self.fs.sfload(self._SF2)
+        self._sfid = self._fs.sfload(self._SF2)
         
         # Logic to work beyond the frames loops and with rests
         self.cooldown_s = 0.18
@@ -363,7 +363,7 @@ class DJ():
             "Thumb_Up": 65 # F4 Fá
         }
 
-    def play_sound(self, right_hand, left_hand):
+    def play_sound2(self, right_hand, left_hand):
         valid = {"Open_Palm", "ILoveYou", "Victory"}
         # rest, to allow the same sound or just a semibreve rest 
         if right_hand.gesture == "Closed_Fist" or left_hand.gesture == "Closed_Fist":
@@ -390,13 +390,13 @@ class DJ():
         self.ch.play(self.sounds[left_hand.gesture][idx])
         
     def _play_note(self, ch, prog, note, vel=127, dur=1, bank=0):
-        self.fs.program_select(ch, self.sfid, bank, prog)
-        self.fs.noteon(ch, note, vel)
+        self._fs.program_select(ch, self._sfid, bank, prog)
+        self._fs.noteon(ch, note, vel)
         time.sleep(dur)
-        self.fs.noteoff(ch, note)
+        self._fs.noteoff(ch, note)
         
-    def play_sound2(self, right_hand, left_hand):
-        valid = {"Open_Palm", "ILoveYou", "Victory"}
+    def play_sound(self, right_hand, left_hand):
+        valid = ["Open_Palm", "ILoveYou", "Victory", "Pointing_Up", "Thumb_Up"]
         # rest, to allow the same sound or just a semibreve rest 
         if right_hand.gesture == "Closed_Fist" or left_hand.gesture == "Closed_Fist":
             self._last_combo = None
@@ -406,6 +406,9 @@ class DJ():
             self._last_combo = None
             return
         
+        program = self.programs[left_hand.gesture]
+        note = self.notes[right_hand.gesture]
+        self._play_note(0, prog=program, note=note)
     
 class HandSpeller():
     """
