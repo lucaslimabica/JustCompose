@@ -8,7 +8,9 @@ sfid=fs.sfload(SF2)
 
 def play_note(ch,prog,note,vel=110,dur=0.25,bank=0):
     fs.program_select(ch,sfid,bank,prog)
-    fs.noteon(ch,note,vel);time.sleep(dur);fs.noteoff(ch,note)
+    fs.noteon(ch,note,vel)
+    time.sleep(dur)
+    fs.noteoff(ch,note)
 
 # Piano (GM 1 -> program 0)
 play_note(0,0,60)
