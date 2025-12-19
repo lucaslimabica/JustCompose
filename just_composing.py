@@ -334,7 +334,7 @@ class DJ():
             "ILoveYou": 33, # Bass
             "Victory": 29, # Eletric Guitar
             "Pointing_Up": 80, # Synth
-            "Thumb_Up": 38 # Snare
+            "Thumb_Up": 45 # Low Tom
         }
         
         self.notes = {
@@ -350,7 +350,7 @@ class DJ():
         self._fs.noteon(ch, note, vel)
         time.sleep(dur)
         self._fs.noteoff(ch, note)
-        
+            
     def play_sound(self, right_hand, left_hand):
         valid = ["Open_Palm", "ILoveYou", "Victory", "Pointing_Up", "Thumb_Up"]
         # rest, to allow the same sound or just a semibreve rest 
