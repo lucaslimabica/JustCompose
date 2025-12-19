@@ -289,7 +289,16 @@ class Camera:
         return w, h
     
 class Hand():
+    """
+    Represents a detected hand and its current state.
     
+    Attributes:
+        side (str): "Left" or "Right".
+        gesture (str): The name of the recognized gesture (e.g., "Open_Palm")
+        landmarks (list): List of MediaPipe landmark objects
+        landmarks_origin (tuple): (x, y) normalized coordinates of the top-left most point
+        landmarks_end (tuple): (x, y) normalized coordinates of the bottom-right most point
+    """
     def __init__(self, side: str, gesture, landmarks: list):
         self.side = side
         self.sound_file_path = None
@@ -309,12 +318,22 @@ class Hand():
         return self.sound_file_path
     
 class DJ():
+    """
+    Audio controller responsible for synthesizing sounds based on hand gestures.
+    Uses FluidSynth to generate MIDI events.
     
+    This class manages:
+        - Loading SoundFonts (.sf2)
+        - Mapping gesture names to MIDI program IDs (instruments)
+        - Mapping gesture names to MIDI notes
+        - Debouncing sound triggering (cooldowns)
+    """
     _AUDIO_MOKE_FILE = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/assets/boing.mp3"
     _BASE = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose"
     _SF2=r"assets\FluidR3_GM.sf2"
     
     def __init__(self):
+        """Initialize the synthesizer and load the sound bank from .sf2"""
         pygame.mixer.init()
         self.ch = pygame.mixer.Channel(0)
         
@@ -345,11 +364,35 @@ class DJ():
         }
         
     def _play_note(self, ch, prog, note, vel=127, dur=0.74, bank=0):
+        """
+        Internal helper to trigger a MIDI note on/off event sequence.
+        
+        Args:
+            ch (int): MIDI channel
+            prog (int): Program number (Instrument ID)
+            note (int): MIDI note number
+            vel (int): Velocity (volume/intensity), 0-127
+            dur (float): Duration in seconds before sending note-off.
+            bank (int): Sound bank ID
+        """
         self._fs.program_select(ch, self._sfid, bank, prog)
         self._fs.noteon(ch, note, vel)
         Timer(dur, lambda: self._fs.noteoff(ch, note)).start() # Making a queue of notes
             
     def play_sound(self, right_hand, left_hand):
+        """
+        Determines if a sound should be played based on the current gestures of both hands.
+        
+        Logic:
+            - Left Hand determines the Instrument (Program)
+            - Right Hand determines the Note
+            - Prevents spamming by checking a cooldown timer
+            - Ignores invalid gestures or "Closed_Fist" (Rest)
+        
+        Args:
+            right_hand (Hand): The detected right hand object.
+            left_hand (Hand): The detected left hand object.
+        """
         valid = ["Open_Palm", "ILoveYou", "Victory", "Pointing_Up", "Thumb_Up"]
         # rest, to allow the same sound or just a semibreve rest 
         if right_hand.gesture == "Closed_Fist" or left_hand.gesture == "Closed_Fist":
@@ -379,11 +422,19 @@ class DJ():
         
 class HandSpeller():
     """
-    The Gesture Recognizer
+    The Gesture Recognizer and UI manager
+    Handles the interaction between the visual recognition (MediaPipe) and the Logic/Audio (DJ)
     """
     _MODEL_PATH = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/gesture_recognizer.task"
     
     def __init__(self, model=_MODEL_PATH, running_mode=vision.RunningMode.IMAGE):
+        """
+        Initializes the HandSpeller.
+
+        Args:
+            model (str): Path to the .task file for gesture recognition.
+            running_mode: MediaPipe running mode (IMAGE, VIDEO, or LIVE_STREAM)
+        """
         self.base_options = python.BaseOptions(model_asset_path=model)
         self.options = vision.GestureRecognizerOptions(
             base_options=self.base_options,
@@ -410,6 +461,16 @@ class HandSpeller():
         }
 
     def _overlay_png(self, frame, png, x=20, y=20, size=64):
+        """
+        Overlays a PNG image with transparency (alpha channel) onto the background frame.
+        
+        Args:
+            frame (numpy.ndarray): The background image (BGR). Modified in-place
+            png (numpy.ndarray): The overlay image (must include Alpha channel, BGRA)
+            x (int): X-coordinate for top-left corner
+            y (int): Y-coordinate for top-left corner
+            size (int): Target width/height to resize the icon to (square aspect)
+        """
         if png is None:
             return
         if png.shape[2] != 4:
@@ -430,6 +491,16 @@ class HandSpeller():
 
     
     def _gesture_to_icon(self, gesture, label):
+        """
+        Maps a raw MediaPipe gesture to a display name or instrument string
+
+        Args:
+            gesture: The gesture object from MediaPipe results
+            label (str): "Right" or "Left" indicating the hand side
+
+        Returns:
+            str: Name of the instrument (if Right hand) or Note name (if Left hand)
+        """
         name = getattr(gesture, "category_name", None)
         if not name or name == "None":
             return ""
@@ -461,6 +532,21 @@ class HandSpeller():
             return "Rest"
     
     def process_image(self, image, w, h):
+        """
+        Core processing loop for the HandSpeller logic.
+        
+        1. Recognizes gestures in the image
+        2. Draws the instrument icons and text overlays
+        3. Sends the recognized hand states to the DJ for audio playback
+
+        Args:
+            image (numpy.ndarray): Input frame (BGR)
+            w (int): Width of the frame
+            h (int): Height of the frame
+
+        Returns:
+            tuple: (processed_image, recognition_results)
+        """
         image_rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
 
