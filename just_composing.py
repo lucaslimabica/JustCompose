@@ -9,6 +9,7 @@ from mediapipe.framework.formats import landmark_pb2
 import pprint
 import time
 import fluidsynth
+from threading import Timer
 
 
 class Camera:
@@ -325,7 +326,7 @@ class DJ():
         self._sfid = self._fs.sfload(self._SF2)
         
         # Logic to work beyond the frames loops and with rests
-        self.cooldown_s = 0.18
+        self.cooldown_s = 0.74
         self._last_combo = None
         self._last_t = 0.0
         
@@ -348,8 +349,7 @@ class DJ():
     def _play_note(self, ch, prog, note, vel=127, dur=0.74, bank=0):
         self._fs.program_select(ch, self._sfid, bank, prog)
         self._fs.noteon(ch, note, vel)
-        time.sleep(dur)
-        self._fs.noteoff(ch, note)
+        Timer(dur, lambda: self._fs.noteoff(ch, note)).start() # Making a queue of notes
             
     def play_sound(self, right_hand, left_hand):
         valid = ["Open_Palm", "ILoveYou", "Victory", "Pointing_Up", "Thumb_Up"]
