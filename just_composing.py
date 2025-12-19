@@ -395,6 +395,13 @@ class HandSpeller():
         self.recognizer = vision.GestureRecognizer.create_from_options(self.options)
         self.dj = DJ()
         
+        # Icons images
+        self.electric_guitar = cv.imread("./assets/electric-guitar.png", cv.IMREAD_UNCHANGED)
+        self.bass = cv.imread("./assets/bass.png", cv.IMREAD_UNCHANGED)
+        self.synth = cv.imread("./assets/synth.png", cv.IMREAD_UNCHANGED)
+        self.piano = cv.imread("./assets/pian.png", cv.IMREAD_UNCHANGED)
+        self.tom = cv.imread("./assets/drum.png", cv.IMREAD_UNCHANGED)
+        
     def _gesture_to_icon(self, gesture, label):
         name = getattr(gesture, "category_name", None)
         if not name or name == "None":
@@ -443,16 +450,18 @@ class HandSpeller():
             hand = Hand(side=side, gesture=gesture_category, landmarks=landmarks)
             hands_by_side[side] = hand
 
+            instrument = self._gesture_to_icon(gesture_category, side)
+            
             x = int((hand.landmarks_origin[0] * w) - 30)
             y = int((hand.landmarks_origin[1] * h) - 30)
             cv.putText(
                 img=image,
-                text=self._gesture_to_icon(gesture_category, side),
+                text=instrument,
                 org=(x, y),
                 fontFace=cv.FONT_HERSHEY_SIMPLEX,
                 fontScale=1,
                 thickness=1,
-                color=(120, 23, 190),
+                color=(0, 0, 0),
                 lineType=cv.LINE_AA
             )
 
