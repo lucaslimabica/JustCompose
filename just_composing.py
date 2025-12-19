@@ -399,16 +399,45 @@ class HandSpeller():
         self.electric_guitar = cv.imread("./assets/electric-guitar.png", cv.IMREAD_UNCHANGED)
         self.bass = cv.imread("./assets/bass.png", cv.IMREAD_UNCHANGED)
         self.synth = cv.imread("./assets/synth.png", cv.IMREAD_UNCHANGED)
-        self.piano = cv.imread("./assets/pian.png", cv.IMREAD_UNCHANGED)
+        self.piano = cv.imread("./assets/piano.png", cv.IMREAD_UNCHANGED)
         self.tom = cv.imread("./assets/drum.png", cv.IMREAD_UNCHANGED)
-        
+        self.rest = cv.imread("./assets/rest.png", cv.IMREAD_UNCHANGED)
+        self.icons = {
+            "Piano": self.piano,
+            "Bass": self.bass,
+            "Eletric Guitar": self.electric_guitar,
+            "Synth": self.synth,
+            "Low Tom": self.tom,
+            "Rest": self.rest,
+        }
+
+    def _overlay_png(self, frame, png, x=20, y=20, size=64):
+        if png is None:
+            return
+        if png.shape[2] != 4:
+            return
+
+        # resize
+        png_resized = cv.resize(png, (size, size), interpolation=cv.INTER_AREA)
+        h, w = png_resized.shape[:2]
+
+        # asserting the size inside the frame
+        H, W = frame.shape[:2]
+        if x + w > W or y + h > H:
+            return
+
+        alpha = png_resized[:, :, 3] / 255.0
+        for c in range(3):
+            frame[y:y+h, x:x+w, c] = (alpha * png_resized[:, :, c] + (1 - alpha) * frame[y:y+h, x:x+w, c])
+
+    
     def _gesture_to_icon(self, gesture, label):
         name = getattr(gesture, "category_name", None)
         if not name or name == "None":
-            return ""
+            return "Rest"
         
         instrument = {
-            "Open_Palm": "Pian",
+            "Open_Palm": "Piano",
             "ILoveYou": "Bass",
             "Victory": "Eletric Guitar",
             "Pointing_Up": "Synth",
@@ -426,12 +455,12 @@ class HandSpeller():
         }
         
         try:
-            if label == "Left":
+            if label == "Right":
                 return instrument[gesture.category_name]
             else:
                 return notes[gesture.category_name]
         except KeyError:
-            return ""
+            return "Rest"
     
     def process_image(self, image, w, h):
         image_rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB)
@@ -454,19 +483,25 @@ class HandSpeller():
             
             x = int((hand.landmarks_origin[0] * w) - 30)
             y = int((hand.landmarks_origin[1] * h) - 30)
-            cv.putText(
-                img=image,
-                text=instrument,
-                org=(x, y),
-                fontFace=cv.FONT_HERSHEY_SIMPLEX,
-                fontScale=1,
-                thickness=1,
-                color=(0, 0, 0),
-                lineType=cv.LINE_AA
-            )
-
+            if side == "Left":
+                cv.putText(
+                    img=image,
+                    text=instrument,
+                    org=(x, y),
+                    fontFace=cv.FONT_HERSHEY_SIMPLEX,
+                    fontScale=1,
+                    thickness=1,
+                    color=(0, 0, 0),
+                    lineType=cv.LINE_AA
+                )
+            try:
+                icon = self.icons.get(instrument)
+                self._overlay_png(image, icon, x=20, y=20, size=80)
+            except:
+                pass
+            
         if "Right" in hands_by_side and "Left" in hands_by_side:
             self.dj.play_sound(hands_by_side["Left"], hands_by_side["Right"]) # Inverted because we flip at the opencv
-
+        
         return image, results
 
