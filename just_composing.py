@@ -8,6 +8,7 @@ from mediapipe.tasks.python import vision
 from mediapipe.framework.formats import landmark_pb2
 import pprint
 import time
+import fluidsynth
 
 
 class Camera:
@@ -312,11 +313,19 @@ class DJ():
     
     _AUDIO_MOKE_FILE = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/assets/boing.mp3"
     _BASE = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose"
+    _SF2=r"assets\FluidR3_GM.sf2"
     
     def __init__(self):
         pygame.mixer.init()
         self.ch = pygame.mixer.Channel(0)
-        self.cooldown_s = 0.18  # to work beyond the frames loops
+        
+        # FluidS
+        self._fs = fluidsynth.Synth()
+        self._fs.start(driver="dsound")
+        self._sfid = self.fs.sfload(self._SF2)
+        
+        # Logic to work beyond the frames loops and with rests
+        self.cooldown_s = 0.18
         self._last_combo = None
         self._last_t = 0.0
 
@@ -336,6 +345,22 @@ class DJ():
                 pygame.mixer.Sound(f"{self._BASE}/assets/syhnt02.mp3"),
                 pygame.mixer.Sound(f"{self._BASE}/assets/syhnt03.mp3"),
             ],
+        }
+        
+        self.programs = {
+            "Open_Palm": 0, # Pian
+            "ILoveYou": 33, # Bass
+            "Victory": 29, # Eletric Guitar
+            "Pointing_Up": 80, # Synth
+            "Thumb_Up": 38 # Snare
+        }
+        
+        self.notes = {
+            "Open_Palm": 48, # C3 Dó
+            "ILoveYou": 62, # D4 Ré
+            "Victory": 69, # A4 Lá
+            "Pointing_Up": 64, # E4 Mi
+            "Thumb_Up": 65 # F4 Fá
         }
 
     def play_sound(self, right_hand, left_hand):
@@ -363,6 +388,24 @@ class DJ():
         self._last_combo = combo
         self._last_t = now
         self.ch.play(self.sounds[left_hand.gesture][idx])
+        
+    def _play_note(self, ch, prog, note, vel=127, dur=1, bank=0):
+        self.fs.program_select(ch, self.sfid, bank, prog)
+        self.fs.noteon(ch, note, vel)
+        time.sleep(dur)
+        self.fs.noteoff(ch, note)
+        
+    def play_sound2(self, right_hand, left_hand):
+        valid = {"Open_Palm", "ILoveYou", "Victory"}
+        # rest, to allow the same sound or just a semibreve rest 
+        if right_hand.gesture == "Closed_Fist" or left_hand.gesture == "Closed_Fist":
+            self._last_combo = None
+            return
+        
+        if right_hand.gesture not in valid or left_hand.gesture not in valid:
+            self._last_combo = None
+            return
+        
     
 class HandSpeller():
     """
