@@ -2,11 +2,9 @@
 import cv2 as cv
 import mediapipe as mp
 import pygame
-import database_manager
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from mediapipe.framework.formats import landmark_pb2
-import pprint
 import time
 import fluidsynth
 from threading import Timer
@@ -478,6 +476,7 @@ class HandSpeller():
 
             hand = Hand(side=side, gesture=gesture_category, landmarks=landmarks)
             hands_by_side[side] = hand
+            self.last_hands_by_side = hands_by_side
 
             instrument = self._gesture_to_icon(gesture_category, side)
             
