@@ -394,6 +394,37 @@ class HandSpeller():
         )
         self.recognizer = vision.GestureRecognizer.create_from_options(self.options)
         self.dj = DJ()
+        
+    def _gesture_to_icon(self, gesture, label):
+        name = getattr(gesture, "category_name", None)
+        if not name or name == "None":
+            return ""
+        
+        instrument = {
+            "Open_Palm": "Pian",
+            "ILoveYou": "Bass",
+            "Victory": "Eletric Guitar",
+            "Pointing_Up": "Synth",
+            "Thumb_Up": "Low Tom",
+            "Closed_Fist": "Rest"
+        }
+        
+        notes = {
+            "Open_Palm": "C3 / DO",
+            "ILoveYou": "D4 / RE",
+            "Victory": "A4 / LA",
+            "Pointing_Up": "E4 / MI",
+            "Thumb_Up": "F4 / FA",
+            "Closed_Fist": "Rest"
+        }
+        
+        try:
+            if label == "Left":
+                return instrument[gesture.category_name]
+            else:
+                return notes[gesture.category_name]
+        except KeyError:
+            return ""
     
     def process_image(self, image, w, h):
         image_rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB)
@@ -416,7 +447,7 @@ class HandSpeller():
             y = int((hand.landmarks_origin[1] * h) - 30)
             cv.putText(
                 img=image,
-                text=hand.gesture,
+                text=self._gesture_to_icon(gesture_category, side),
                 org=(x, y),
                 fontFace=cv.FONT_HERSHEY_SIMPLEX,
                 fontScale=1,
