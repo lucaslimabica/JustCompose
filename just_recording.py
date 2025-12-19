@@ -11,13 +11,30 @@ import subprocess
 import os
 
 class ScreenRecorder:
+    """
+    Handles video capturing and post-processing for screen recording.
+    
+    This class manages the lifecycle of a video file, from initializing the 
+    OpenCV VideoWriter to merging external audio tracks using FFmpeg.
+    """
     def __init__(self):
+        """Initializes the recorder with default empty states"""
         self.writer = None
         self.is_recording = False
         self.last_video_path = ""
 
     def toggle(self, frame, w, h):
-        """switch states"""
+        """
+        Switches the recording state between active and inactive.
+
+        Args:
+            frame: The current video frame to process if starting.
+            w (int): Width of the video frame.
+            h (int): Height of the video frame.
+
+        Returns:
+            bool: The new state of self.is_recording.
+        """
         if self.is_recording:
             self.stop()
             return False
@@ -26,36 +43,56 @@ class ScreenRecorder:
             return True
     
     def start(self, w, h):
+        """
+        Initializes the VideoWriter and starts saving frames to a temporary file.
+
+        Args:
+            w (int): Frame width.
+            h (int): Frame height.
+        """
         self.last_video_path = f"temp_video_{datetime.now().strftime('%H%M%S')}.mp4"
         fourcc = cv.VideoWriter_fourcc(*'mp4v')
         self.writer = cv.VideoWriter(self.last_video_path, fourcc, 20.0, (w, h))
         self.is_recording = True
 
     def stop(self):
+        """Releases the VideoWriter resources and stops the recording process."""
         if self.writer:
             self.writer.release()
             self.writer = None
         self.is_recording = False
-
-    def merge_audio(self, audio_path):
-        final_file = f"JustCompose_Final_{datetime.now().strftime('%d-%m_%H%M%S')}.mp4"
-        
-        cmd = f'ffmpeg -y -i {self.last_video_path} -i {audio_path} -c:v copy -c:a aac -shortest {final_file}'
-        
-        try:
-            subprocess.run(cmd, shell=True, check=True)
-            print(f"Success making the video: {final_file}")
-        except Exception as e:
-            print(f"ERROR, maybe the FFmpeg?")
         
 class StudioCamera(Camera):
+    """
+    An enhanced Camera class that supports gesture-controlled audio recording.
+    
+    Inherits from Camera and overrides the video stream processing to include
+    logic for detecting recording triggers (Double Thumbs Down).
+    """
     def __init__(self, name="Just Compose Studio", device=0, capture_mode=None):
+        """
+        Initializes the StudioCamera with recording states and cooldowns.
+
+        Args:
+            name (str): Window title
+            device (int): Camera index
+            capture_mode: MediaPipe capture settings
+        """
         super().__init__(name, device, capture_mode)
         self.is_recording_audio = False 
         self.last_trigger_time = 0
         self.cooldown_seconds = 2.0
         
     def _check_record_trigger(self, results):
+        """
+        Checks if the 'Thumb_Down' gesture is detected on both hands.
+
+        Args:
+            results: MediaPipe gesture recognition results.
+
+        Returns:
+            bool: True if both hands are performing the trigger gesture.
+        """
         if not results.gestures or len(results.gestures) < 2:
             return False
         thumbs_down_count = 0
@@ -65,6 +102,10 @@ class StudioCamera(Camera):
         return thumbs_down_count == 2
 
     def _process_video_stream(self):
+        """
+        Main loop for the camera feed. Handles frame processing, gesture detection,
+        and audio recording synchronization.
+        """
         with self.mp_hands.Hands() as hand_detector:
             self.cap = cv.VideoCapture(self.device)
             if not self.cap.isOpened(): return
