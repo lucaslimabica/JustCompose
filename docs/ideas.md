@@ -463,3 +463,85 @@ class Camera:
                 
         cv.destroyAllWindows()
 ```
+
+-----
+# PyFluidSynth
+
+## Notas
+| Nota musical    | Número MIDI |
+| --------------- | ----------- |
+| C3 (Dó)         | 48          |
+| C4 (Dó central) | 60          |
+| D4              | 62          |
+| E4              | 64          |
+| F4              | 65          |
+| G4              | 67          |
+| A4 (Lá 440Hz)   | 69          |
+| B4              | 71          |
+| C5              | 72          |
+
+## Instrumento
+
+No padrão General MIDI (GM):
+program vai de 0 a 127
+Cada número representa um instrumento
+| Instrumento       | GM | program (0-based) |
+| ----------------- | -- | ----------------- |
+| Piano    | 1  | **0**             |
+| Guitarra | 30 | **29**            |
+| Baixo | 34 | **33**            |
+| Synth      | 81 | **80**            |
+
+### Bateria
+Sempre no canal 10 (MIDI) → canal 9 (Python, 0-based)
+| Peça           | Nota MIDI |
+| -------------- | --------- |
+| Kick           | 36        |
+| Snare          | 38        |
+| Pratos fechado | 42        |
+| Pratos aberto  | 46        |
+
+## play_note
+def play_note(ch, prog, note, vel=110, dur=0.25, bank=0):
+ch → canal
+0–15
+
+prog
+> 0 → instrumentos normais
+> 9 → bateria
+> 0   # piano
+> 29  # guitarra
+> 33  # baixo
+> 80  # synth lead
+
+note → nota musical
+
+Exemplos:
+
+60  # C4
+62  # D4
+64  # E4
+72  # C5
+36  # kick (drum)
+
+vel → intensidade (força)
+
+0–127
+
+Mais alto = mais forte
+
+vel=80   
+vel=120  
+
+dur → duração (segundos)
+
+Quanto tempo a nota fica ligada:
+
+dur=0.15 
+dur=0.4  
+
+bank → banco (normalmente 0)
+
+Para bateria GM, usa bank=128
+
+Para instrumentos normais, bank=0

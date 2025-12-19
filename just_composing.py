@@ -8,6 +8,8 @@ from mediapipe.tasks.python import vision
 from mediapipe.framework.formats import landmark_pb2
 import pprint
 import time
+import fluidsynth
+from threading import Timer
 
 
 class Camera:
@@ -312,34 +314,45 @@ class DJ():
     
     _AUDIO_MOKE_FILE = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/assets/boing.mp3"
     _BASE = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose"
+    _SF2=r"assets\FluidR3_GM.sf2"
     
     def __init__(self):
         pygame.mixer.init()
         self.ch = pygame.mixer.Channel(0)
-        self.cooldown_s = 0.18  # to work beyond the frames loops
+        
+        # FluidS
+        self._fs = fluidsynth.Synth()
+        self._fs.start(driver="dsound")
+        self._sfid = self._fs.sfload(self._SF2)
+        
+        # Logic to work beyond the frames loops and with rests
+        self.cooldown_s = 0.74
         self._last_combo = None
         self._last_t = 0.0
-
-        self.sounds = {
-            "Open_Palm": [
-                pygame.mixer.Sound(f"{self._BASE}/assets/drum01.mp3"),
-                pygame.mixer.Sound(f"{self._BASE}/assets/drum02.mp3"),
-                pygame.mixer.Sound(f"{self._BASE}/assets/drum03.mp3"),
-            ],
-            "ILoveYou": [
-                pygame.mixer.Sound(f"{self._BASE}/assets/guitar01.mp3"),
-                pygame.mixer.Sound(f"{self._BASE}/assets/guitar02.mp3"),
-                pygame.mixer.Sound(f"{self._BASE}/assets/guitar03.mp3"),
-            ],
-            "Victory": [
-                pygame.mixer.Sound(f"{self._BASE}/assets/syhnt01.mp3"),
-                pygame.mixer.Sound(f"{self._BASE}/assets/syhnt02.mp3"),
-                pygame.mixer.Sound(f"{self._BASE}/assets/syhnt03.mp3"),
-            ],
+        
+        self.programs = {
+            "Open_Palm": 0, # Pian
+            "ILoveYou": 33, # Bass
+            "Victory": 29, # Eletric Guitar
+            "Pointing_Up": 80, # Synth
+            "Thumb_Up": 45 # Low Tom
         }
-
+        
+        self.notes = {
+            "Open_Palm": 48, # C3 Dó
+            "ILoveYou": 62, # D4 Ré
+            "Victory": 69, # A4 Lá
+            "Pointing_Up": 64, # E4 Mi
+            "Thumb_Up": 65 # F4 Fá
+        }
+        
+    def _play_note(self, ch, prog, note, vel=127, dur=0.74, bank=0):
+        self._fs.program_select(ch, self._sfid, bank, prog)
+        self._fs.noteon(ch, note, vel)
+        Timer(dur, lambda: self._fs.noteoff(ch, note)).start() # Making a queue of notes
+            
     def play_sound(self, right_hand, left_hand):
-        valid = {"Open_Palm", "ILoveYou", "Victory"}
+        valid = ["Open_Palm", "ILoveYou", "Victory", "Pointing_Up", "Thumb_Up"]
         # rest, to allow the same sound or just a semibreve rest 
         if right_hand.gesture == "Closed_Fist" or left_hand.gesture == "Closed_Fist":
             self._last_combo = None
@@ -348,10 +361,12 @@ class DJ():
         if right_hand.gesture not in valid or left_hand.gesture not in valid:
             self._last_combo = None
             return
-
-        idx = {"Open_Palm": 0, "ILoveYou": 1, "Victory": 2}[right_hand.gesture] # Matching the right hand gesture
-        combo = (left_hand.gesture, idx)
-
+        
+        program = self.programs[left_hand.gesture]
+        note = self.notes[right_hand.gesture]
+        
+        # No reapet logic
+        combo = (program, note)
         now = time.time()
         if combo == self._last_combo:
             return
@@ -359,11 +374,11 @@ class DJ():
             return
         if self.ch.get_busy():
             return
-
         self._last_combo = combo
         self._last_t = now
-        self.ch.play(self.sounds[left_hand.gesture][idx])
-    
+        
+        self._play_note(0, prog=program, note=note)
+        
 class HandSpeller():
     """
     The Gesture Recognizer
@@ -379,6 +394,37 @@ class HandSpeller():
         )
         self.recognizer = vision.GestureRecognizer.create_from_options(self.options)
         self.dj = DJ()
+        
+    def _gesture_to_icon(self, gesture, label):
+        name = getattr(gesture, "category_name", None)
+        if not name or name == "None":
+            return ""
+        
+        instrument = {
+            "Open_Palm": "Pian",
+            "ILoveYou": "Bass",
+            "Victory": "Eletric Guitar",
+            "Pointing_Up": "Synth",
+            "Thumb_Up": "Low Tom",
+            "Closed_Fist": "Rest"
+        }
+        
+        notes = {
+            "Open_Palm": "C3 / DO",
+            "ILoveYou": "D4 / RE",
+            "Victory": "A4 / LA",
+            "Pointing_Up": "E4 / MI",
+            "Thumb_Up": "F4 / FA",
+            "Closed_Fist": "Rest"
+        }
+        
+        try:
+            if label == "Left":
+                return instrument[gesture.category_name]
+            else:
+                return notes[gesture.category_name]
+        except KeyError:
+            return ""
     
     def process_image(self, image, w, h):
         image_rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB)
@@ -401,7 +447,7 @@ class HandSpeller():
             y = int((hand.landmarks_origin[1] * h) - 30)
             cv.putText(
                 img=image,
-                text=hand.gesture,
+                text=self._gesture_to_icon(gesture_category, side),
                 org=(x, y),
                 fontFace=cv.FONT_HERSHEY_SIMPLEX,
                 fontScale=1,
