@@ -2,14 +2,14 @@
 import cv2 as cv
 import mediapipe as mp
 import pygame
-import database_manager
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from mediapipe.framework.formats import landmark_pb2
-import pprint
 import time
 import fluidsynth
 from threading import Timer
+import wave
+import numpy as np
 
 
 class Camera:
@@ -291,7 +291,16 @@ class Camera:
         return w, h
     
 class Hand():
+    """
+    Represents a detected hand and its current state.
     
+    Attributes:
+        side (str): "Left" or "Right".
+        gesture (str): The name of the recognized gesture (e.g., "Open_Palm")
+        landmarks (list): List of MediaPipe landmark objects
+        landmarks_origin (tuple): (x, y) normalized coordinates of the top-left most point
+        landmarks_end (tuple): (x, y) normalized coordinates of the bottom-right most point
+    """
     def __init__(self, side: str, gesture, landmarks: list):
         self.side = side
         self.sound_file_path = None
@@ -311,12 +320,22 @@ class Hand():
         return self.sound_file_path
     
 class DJ():
+    """
+    Audio controller responsible for synthesizing sounds based on hand gestures.
+    Uses FluidSynth to generate MIDI events.
     
+    This class manages:
+        - Loading SoundFonts (.sf2)
+        - Mapping gesture names to MIDI program IDs (instruments)
+        - Mapping gesture names to MIDI notes
+        - Debouncing sound triggering (cooldowns)
+    """
     _AUDIO_MOKE_FILE = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/assets/boing.mp3"
     _BASE = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose"
     _SF2=r"assets\FluidR3_GM.sf2"
     
     def __init__(self):
+        """Initialize the synthesizer and load the sound bank from .sf2"""
         pygame.mixer.init()
         self.ch = pygame.mixer.Channel(0)
         
@@ -329,6 +348,9 @@ class DJ():
         self.cooldown_s = 0.74
         self._last_combo = None
         self._last_t = 0.0
+        
+        # To REC
+        self.is_recording_audio = False
         
         self.programs = {
             "Open_Palm": 0, # Pian
@@ -347,11 +369,43 @@ class DJ():
         }
         
     def _play_note(self, ch, prog, note, vel=127, dur=0.74, bank=0):
+        """
+        Internal helper to trigger a MIDI note on/off event sequence.
+        
+        Args:
+            ch (int): MIDI channel
+            prog (int): Program number (Instrument ID)
+            note (int): MIDI note number
+            vel (int): Velocity (volume/intensity), 0-127
+            dur (float): Duration in seconds before sending note-off.
+            bank (int): Sound bank ID
+        """
         self._fs.program_select(ch, self._sfid, bank, prog)
         self._fs.noteon(ch, note, vel)
+        
+        if hasattr(self, 'is_recording_audio') and self.is_recording_audio:
+            # samples from the note
+            frames_to_generate = int(44100 * dur)
+            samples = self._fs.get_samples(frames_to_generate)
+            s16 = np.int16(samples)
+            self.recording_file.writeframes(s16.tobytes())
+            
         Timer(dur, lambda: self._fs.noteoff(ch, note)).start() # Making a queue of notes
             
     def play_sound(self, right_hand, left_hand):
+        """
+        Determines if a sound should be played based on the current gestures of both hands.
+        
+        Logic:
+            - Left Hand determines the Instrument (Program)
+            - Right Hand determines the Note
+            - Prevents spamming by checking a cooldown timer
+            - Ignores invalid gestures or "Closed_Fist" (Rest)
+        
+        Args:
+            right_hand (Hand): The detected right hand object.
+            left_hand (Hand): The detected left hand object.
+        """
         valid = ["Open_Palm", "ILoveYou", "Victory", "Pointing_Up", "Thumb_Up"]
         # rest, to allow the same sound or just a semibreve rest 
         if right_hand.gesture == "Closed_Fist" or left_hand.gesture == "Closed_Fist":
@@ -379,13 +433,35 @@ class DJ():
         
         self._play_note(0, prog=program, note=note)
         
+    def start_recording(self, filename="session_audio.wav"):
+        self.recording_file = wave.open(filename, 'wb')
+        self.recording_file.setnchannels(2)
+        self.recording_file.setsampwidth(2)
+        self.recording_file.setframerate(44100)
+        self.is_recording_audio = True
+        print("RECing...")
+
+    def stop_recording(self):
+        if hasattr(self, 'recording_file'):
+            self.is_recording_audio = False
+            self.recording_file.close()
+            print("Audio saved!")
+        
 class HandSpeller():
     """
-    The Gesture Recognizer
+    The Gesture Recognizer and UI manager
+    Handles the interaction between the visual recognition (MediaPipe) and the Logic/Audio (DJ)
     """
     _MODEL_PATH = "C:/Users/lusca/Universidade/CV/TPs/TPFinal/JustCompose/gesture_recognizer.task"
     
     def __init__(self, model=_MODEL_PATH, running_mode=vision.RunningMode.IMAGE):
+        """
+        Initializes the HandSpeller.
+
+        Args:
+            model (str): Path to the .task file for gesture recognition.
+            running_mode: MediaPipe running mode (IMAGE, VIDEO, or LIVE_STREAM)
+        """
         self.base_options = python.BaseOptions(model_asset_path=model)
         self.options = vision.GestureRecognizerOptions(
             base_options=self.base_options,
@@ -395,13 +471,69 @@ class HandSpeller():
         self.recognizer = vision.GestureRecognizer.create_from_options(self.options)
         self.dj = DJ()
         
+        # Icons images
+        self.electric_guitar = cv.imread("./assets/electric-guitar.png", cv.IMREAD_UNCHANGED)
+        self.bass = cv.imread("./assets/bass.png", cv.IMREAD_UNCHANGED)
+        self.synth = cv.imread("./assets/synth.png", cv.IMREAD_UNCHANGED)
+        self.piano = cv.imread("./assets/piano.png", cv.IMREAD_UNCHANGED)
+        self.tom = cv.imread("./assets/drum.png", cv.IMREAD_UNCHANGED)
+        self.rest = cv.imread("./assets/rest.png", cv.IMREAD_UNCHANGED)
+        self.icons = {
+            "Piano": self.piano,
+            "Bass": self.bass,
+            "Eletric Guitar": self.electric_guitar,
+            "Synth": self.synth,
+            "Low Tom": self.tom,
+            "Rest": self.rest,
+        }
+
+    def _overlay_png(self, frame, png, x=20, y=20, size=64):
+        """
+        Overlays a PNG image with transparency (alpha channel) onto the background frame.
+        
+        Args:
+            frame (numpy.ndarray): The background image (BGR). Modified in-place
+            png (numpy.ndarray): The overlay image (must include Alpha channel, BGRA)
+            x (int): X-coordinate for top-left corner
+            y (int): Y-coordinate for top-left corner
+            size (int): Target width/height to resize the icon to (square aspect)
+        """
+        if png is None:
+            return
+        if png.shape[2] != 4:
+            return
+
+        # resize
+        png_resized = cv.resize(png, (size, size), interpolation=cv.INTER_AREA)
+        h, w = png_resized.shape[:2]
+
+        # asserting the size inside the frame
+        H, W = frame.shape[:2]
+        if x + w > W or y + h > H:
+            return
+
+        alpha = png_resized[:, :, 3] / 255.0
+        for c in range(3):
+            frame[y:y+h, x:x+w, c] = (alpha * png_resized[:, :, c] + (1 - alpha) * frame[y:y+h, x:x+w, c])
+
+    
     def _gesture_to_icon(self, gesture, label):
+        """
+        Maps a raw MediaPipe gesture to a display name or instrument string
+
+        Args:
+            gesture: The gesture object from MediaPipe results
+            label (str): "Right" or "Left" indicating the hand side
+
+        Returns:
+            str: Name of the instrument (if Right hand) or Note name (if Left hand)
+        """
         name = getattr(gesture, "category_name", None)
         if not name or name == "None":
             return ""
         
         instrument = {
-            "Open_Palm": "Pian",
+            "Open_Palm": "Piano",
             "ILoveYou": "Bass",
             "Victory": "Eletric Guitar",
             "Pointing_Up": "Synth",
@@ -419,14 +551,29 @@ class HandSpeller():
         }
         
         try:
-            if label == "Left":
+            if label == "Right":
                 return instrument[gesture.category_name]
             else:
                 return notes[gesture.category_name]
         except KeyError:
-            return ""
+            return "Rest"
     
     def process_image(self, image, w, h):
+        """
+        Core processing loop for the HandSpeller logic.
+        
+        1. Recognizes gestures in the image
+        2. Draws the instrument icons and text overlays
+        3. Sends the recognized hand states to the DJ for audio playback
+
+        Args:
+            image (numpy.ndarray): Input frame (BGR)
+            w (int): Width of the frame
+            h (int): Height of the frame
+
+        Returns:
+            tuple: (processed_image, recognition_results)
+        """
         image_rgb = cv.cvtColor(image, cv.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
 
@@ -442,22 +589,31 @@ class HandSpeller():
 
             hand = Hand(side=side, gesture=gesture_category, landmarks=landmarks)
             hands_by_side[side] = hand
+            self.last_hands_by_side = hands_by_side
 
+            instrument = self._gesture_to_icon(gesture_category, side)
+            
             x = int((hand.landmarks_origin[0] * w) - 30)
             y = int((hand.landmarks_origin[1] * h) - 30)
-            cv.putText(
-                img=image,
-                text=self._gesture_to_icon(gesture_category, side),
-                org=(x, y),
-                fontFace=cv.FONT_HERSHEY_SIMPLEX,
-                fontScale=1,
-                thickness=1,
-                color=(120, 23, 190),
-                lineType=cv.LINE_AA
-            )
-
+            if side == "Left":
+                cv.putText(
+                    img=image,
+                    text=instrument,
+                    org=(x, y),
+                    fontFace=cv.FONT_HERSHEY_SIMPLEX,
+                    fontScale=1,
+                    thickness=1,
+                    color=(0, 0, 0),
+                    lineType=cv.LINE_AA
+                )
+            try:
+                icon = self.icons.get(instrument)
+                self._overlay_png(image, icon, x=20, y=20, size=80)
+            except:
+                pass
+            
         if "Right" in hands_by_side and "Left" in hands_by_side:
             self.dj.play_sound(hands_by_side["Left"], hands_by_side["Right"]) # Inverted because we flip at the opencv
-
+        
         return image, results
 
