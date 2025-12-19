@@ -1,5 +1,5 @@
 from just_composing import Camera
-from just_recording import RECer
+from just_recording import *
 import pygame
 import sys
 
@@ -63,7 +63,7 @@ def main():
                     cam.capture()
                     main()
                 elif hover_record:
-                    recorder = RECer()
+                    recorder = StudioCamera()
                     pygame.mixer.music.stop()
                     pygame.display.quit()
                     recorder.capture()

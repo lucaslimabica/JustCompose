@@ -8,6 +8,8 @@ from mediapipe.framework.formats import landmark_pb2
 import time
 import fluidsynth
 from threading import Timer
+import wave
+import numpy as np
 
 
 class Camera:
@@ -347,6 +349,9 @@ class DJ():
         self._last_combo = None
         self._last_t = 0.0
         
+        # To REC
+        self.is_recording_audio = False
+        
         self.programs = {
             "Open_Palm": 0, # Pian
             "ILoveYou": 33, # Bass
@@ -377,6 +382,12 @@ class DJ():
         """
         self._fs.program_select(ch, self._sfid, bank, prog)
         self._fs.noteon(ch, note, vel)
+        if hasattr(self, 'is_recording_audio') and self.is_recording_audio:
+            # samples from the note
+            frames_to_generate = int(44100 * dur)
+            samples = self._fs.get_samples(frames_to_generate)
+            s16 = np.int16(samples)
+            self.recording_file.writeframes(s16.tobytes())
         Timer(dur, lambda: self._fs.noteoff(ch, note)).start() # Making a queue of notes
             
     def play_sound(self, right_hand, left_hand):
@@ -419,6 +430,20 @@ class DJ():
         self._last_t = now
         
         self._play_note(0, prog=program, note=note)
+        
+    def start_recording(self, filename="session_audio.wav"):
+        self.recording_file = wave.open(filename, 'wb')
+        self.recording_file.setnchannels(2)
+        self.recording_file.setsampwidth(2)
+        self.recording_file.setframerate(44100)
+        self.is_recording_audio = True
+        print("RECing...")
+
+    def stop_recording(self):
+        if hasattr(self, 'recording_file'):
+            self.is_recording_audio = False
+            self.recording_file.close()
+            print("Audio saved!")
         
 class HandSpeller():
     """
