@@ -432,7 +432,7 @@ class HandSpeller():
     def _gesture_to_icon(self, gesture, label):
         name = getattr(gesture, "category_name", None)
         if not name or name == "None":
-            return "Rest"
+            return ""
         
         instrument = {
             "Open_Palm": "Piano",
